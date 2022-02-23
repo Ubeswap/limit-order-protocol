@@ -28,6 +28,7 @@ interface ILimitOrderProtocol {
 }
 
 /// @title Public order book for Order
+// solhint-disable-next-line max-states-count
 contract OrderBook {
     /// @notice The limit order protocol this orderbook references
     ILimitOrderProtocol public immutable limitOrderProtocol;
