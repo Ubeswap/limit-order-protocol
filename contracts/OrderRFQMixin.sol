@@ -101,7 +101,7 @@ abstract contract OrderRFQMixin is EIP712, AmountCalculator, Permitable {
 
         // Validate order
         require(order.allowedSender == address(0) || order.allowedSender == msg.sender, "LOP: private order");
-        bytes32 orderHash = _hashTypedDataV4(keccak256(abi.encode(LIMIT_ORDER_RFQ_TYPEHASH, order)));
+        bytes32 orderHash = hashOrderRFQ(order);
         require(SignatureChecker.isValidSignatureNow(maker, orderHash, signature), "LOP: bad signature");
 
         {  // Stack too deep
@@ -142,6 +142,10 @@ abstract contract OrderRFQMixin is EIP712, AmountCalculator, Permitable {
 
         emit OrderFilledRFQ(orderHash, makingAmount);
         return (makingAmount, takingAmount);
+    }
+
+    function hashOrderRFQ(OrderRFQ memory order) public view returns(bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(LIMIT_ORDER_RFQ_TYPEHASH, order)));
     }
 
     function _invalidateOrder(address maker, uint256 orderInfo) private {

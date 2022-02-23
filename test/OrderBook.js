@@ -9,8 +9,9 @@ const TokenMock = artifacts.require('TokenMock');
 const WrappedTokenMock = artifacts.require('WrappedTokenMock');
 const LimitOrderProtocol = artifacts.require('LimitOrderProtocol');
 const OrderBook = artifacts.require('OrderBook');
+const OrderRFQBook = artifacts.require('OrderRFQBook');
 
-const { buildOrderData } = require('./helpers/orderUtils');
+const { buildOrderData, buildOrderRFQData } = require('./helpers/orderUtils');
 const { cutLastArg } = require('./helpers/utils');
 
 const expectEqualOrder = (a, b) => {
@@ -29,7 +30,17 @@ const expectEqualOrder = (a, b) => {
     expect(a.predicate).to.be.eq(b.predicate);
     expect(a.permit).to.be.eq(b.permit);
     expect(a.interaction).to.be.eq(b.interaction);
-}
+};
+
+const expectEqualOrderRFQ = (a, b) => {
+    expect(a.info.toString()).to.be.eq(b.info.toString());
+    expect(a.makerAsset).to.be.eq(b.makerAsset);
+    expect(a.takerAsset).to.be.eq(b.takerAsset);
+    expect(a.maker).to.be.eq(b.maker);
+    expect(a.allowedSender).to.be.eq(b.allowedSender);
+    expect(a.makingAmount.toString()).to.be.eq(b.makingAmount.toString());
+    expect(a.takingAmount.toString()).to.be.eq(b.takingAmount.toString());
+};
 
 describe('OrderBook', async function () {
     let wallet;
@@ -84,6 +95,17 @@ describe('OrderBook', async function () {
         };
     }
 
+    function buildOrderRFQ (info, makerAsset, takerAsset, makingAmount, takingAmount, allowedSender = constants.ZERO_ADDRESS) {
+        return {
+            info,
+            makerAsset: makerAsset.address,
+            takerAsset: takerAsset.address,
+            maker: wallet,
+            allowedSender,
+            makingAmount,
+            takingAmount,
+        };
+    }
 
     before(async function () {
         [, wallet] = await web3.eth.getAccounts();
@@ -95,6 +117,7 @@ describe('OrderBook', async function () {
 
         this.swap = await LimitOrderProtocol.new();
         this.orderBook = await OrderBook.new(this.swap.address);
+        this.orderRFQBook = await OrderRFQBook.new(this.swap.address);
 
         // We get the chain id from the contract because Ganache (used for coverage) does not return the same chain id
         // from within the EVM as from the JSON RPC interface.
@@ -126,6 +149,33 @@ describe('OrderBook', async function () {
             const signature = ethSigUtil.signTypedMessage(account.getPrivateKey(), { data });
             const anotherOrder = buildOrder(this.swap, this.dai, this.weth, 1, 2);
             await expectRevert(this.orderBook.broadcastOrder(anotherOrder, signature), 'OB: bad signature');
+        });
+    });
+
+    describe('Broadcast OrderRFQ', async function () {
+        it('broadcast', async function () {
+            const order = buildOrderRFQ('20203181441137406086353707335681', this.dai, this.weth, 1, 1);
+            const data = buildOrderRFQData(this.chainId, this.swap.address, order);
+            const signature = ethSigUtil.signTypedMessage(account.getPrivateKey(), { data });
+            const orderHash = bufferToHex(ethSigUtil.TypedDataUtils.sign(data));
+
+            const { logs } = await this.orderRFQBook.broadcastOrderRFQ(order, signature);
+            expect(logs.length).to.be.eq(1);
+            expect(logs[0].args.maker).to.be.eq(wallet);
+            expect(logs[0].args.orderHash).to.be.eq(orderHash);
+
+            const fetchedOrder = await this.orderRFQBook.orderRFQs(orderHash);
+            const fetchedSignature = await this.orderRFQBook.signatures(orderHash);
+            expectEqualOrderRFQ(order, fetchedOrder);
+            expect(fetchedSignature).to.be.eq(signature);
+        });
+
+        it('fail to broadcast if signature is invalid', async function () {
+            const order = buildOrderRFQ('20203181441137406086353707335681', this.dai, this.weth, 1, 1);
+            const data = buildOrderRFQData(this.chainId, this.swap.address, order);
+            const signature = ethSigUtil.signTypedMessage(account.getPrivateKey(), { data });
+            const anotherOrder = buildOrderRFQ('10203181441137406086353707335681', this.dai, this.weth, 1, 1);
+            await expectRevert(this.orderRFQBook.broadcastOrderRFQ(anotherOrder, signature), 'OB: bad signature');
         });
     });
 });

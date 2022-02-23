@@ -5,7 +5,7 @@ pragma solidity 0.8.11;
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 interface ILimitOrderProtocol {
-    // Imported from LimitOrderProtocol
+    // Imported from OrderMixin
     struct Order {
         uint256 salt;
         address makerAsset;
@@ -27,7 +27,7 @@ interface ILimitOrderProtocol {
     function hashOrder(Order memory order) external view returns(bytes32);
 }
 
-/// @title Public order book
+/// @title Public order book for Order
 contract OrderBook {
     /// @notice The limit order protocol this orderbook references
     ILimitOrderProtocol public immutable limitOrderProtocol;
