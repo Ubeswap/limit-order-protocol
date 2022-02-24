@@ -28,7 +28,7 @@ const Order = [
     { name: 'interaction', type: 'bytes' },
 ];
 
-const name = '1inch Limit Order Protocol';
+const name = 'Ubeswap Limit Order Protocol';
 const version = '2';
 
 function buildOrderData (chainId, verifyingContract, order) {

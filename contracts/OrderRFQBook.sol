@@ -5,7 +5,7 @@ pragma solidity 0.8.11;
 import "./LimitOrderProtocol.sol";
 
 /// @title Public order book for OrderRFQ
-contract OrderRFQBook is EIP712("1inch Limit Order Protocol", "2") {
+contract OrderRFQBook is EIP712("Ubeswap Limit Order Protocol", "2") {
     /// @notice The limit order protocol this orderbook references
     LimitOrderProtocol public immutable limitOrderProtocol;
 
