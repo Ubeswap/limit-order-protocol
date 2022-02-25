@@ -12,19 +12,19 @@ interface ILimitOrderProtocol {
         address takerAsset;
         address maker;
         address receiver;
-        address allowedSender;  // equals to Zero address on public orders
+        address allowedSender; // equals to Zero address on public orders
         uint256 makingAmount;
         uint256 takingAmount;
         bytes makerAssetData;
         bytes takerAssetData;
         bytes getMakerAmount; // this.staticcall(abi.encodePacked(bytes, swapTakerAmount)) => (swapMakerAmount)
         bytes getTakerAmount; // this.staticcall(abi.encodePacked(bytes, swapMakerAmount)) => (swapTakerAmount)
-        bytes predicate;      // this.staticcall(bytes) => (bool)
-        bytes permit;         // On first fill: permit.1.call(abi.encodePacked(permit.selector, permit.2))
+        bytes predicate; // this.staticcall(bytes) => (bool)
+        bytes permit; // On first fill: permit.1.call(abi.encodePacked(permit.selector, permit.2))
         bytes interaction;
     }
 
-    function hashOrder(Order memory order) external view returns(bytes32);
+    function hashOrder(Order memory order) external view returns (bytes32);
 }
 
 /// @title Public order book for Order
@@ -42,15 +42,15 @@ contract OrderBook {
     mapping(bytes32 => address) internal _takerAssets;
     mapping(bytes32 => address) internal _makers;
     mapping(bytes32 => address) internal _receivers;
-    mapping(bytes32 => address) internal _allowedSenders;  
+    mapping(bytes32 => address) internal _allowedSenders;
     mapping(bytes32 => uint256) internal _makingAmounts;
     mapping(bytes32 => uint256) internal _takingAmounts;
     mapping(bytes32 => bytes) internal _makerAssetDatas;
     mapping(bytes32 => bytes) internal _takerAssetDatas;
-    mapping(bytes32 => bytes) internal _getMakerAmounts; 
-    mapping(bytes32 => bytes) internal _getTakerAmounts; 
-    mapping(bytes32 => bytes) internal _predicates;      
-    mapping(bytes32 => bytes) internal _permits;         
+    mapping(bytes32 => bytes) internal _getMakerAmounts;
+    mapping(bytes32 => bytes) internal _getTakerAmounts;
+    mapping(bytes32 => bytes) internal _predicates;
+    mapping(bytes32 => bytes) internal _permits;
     mapping(bytes32 => bytes) internal _interactions;
 
     /// @notice Emitted every time an order is broadcasted
@@ -66,9 +66,16 @@ contract OrderBook {
     function broadcastOrder(
         ILimitOrderProtocol.Order memory _order,
         bytes calldata _signature
-    ) external {
+    ) public virtual {
         bytes32 orderHash = limitOrderProtocol.hashOrder(_order);
-        require(SignatureChecker.isValidSignatureNow(_order.maker, orderHash, _signature), "OB: bad signature");
+        require(
+            SignatureChecker.isValidSignatureNow(
+                _order.maker,
+                orderHash,
+                _signature
+            ),
+            "OB: bad signature"
+        );
 
         _salts[orderHash] = _order.salt;
         _makerAssets[orderHash] = _order.makerAsset;
@@ -93,9 +100,11 @@ contract OrderBook {
     /// @notice Get a broadcasted order
     /// @param _orderHash An order's hash to fetch the underlying order
     /// @return order The order that corresponds to the _orderHash
-    function orders(
-        bytes32 _orderHash
-    ) external view returns(ILimitOrderProtocol.Order memory order) {
+    function orders(bytes32 _orderHash)
+        external
+        view
+        returns (ILimitOrderProtocol.Order memory order)
+    {
         order = ILimitOrderProtocol.Order({
             salt: _salts[_orderHash],
             makerAsset: _makerAssets[_orderHash],
@@ -115,4 +124,3 @@ contract OrderBook {
         });
     }
 }
-
