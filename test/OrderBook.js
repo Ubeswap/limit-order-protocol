@@ -12,7 +12,7 @@ const UbeswapOrderBook = artifacts.require('UbeswapOrderBook');
 const OrderRFQBook = artifacts.require('OrderRFQBook');
 
 const { buildOrderData, buildOrderRFQData } = require('./helpers/orderUtils');
-const { cutLastArg, toBN } = require('./helpers/utils');
+const { cutLastArg } = require('./helpers/utils');
 const { ZERO_ADDRESS } = require('@openzeppelin/test-helpers/src/constants');
 
 const expectEqualOrder = (a, b) => {
