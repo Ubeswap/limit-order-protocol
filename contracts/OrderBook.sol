@@ -63,10 +63,10 @@ contract OrderBook {
     /// @notice Broadcast a limit order with its signature
     /// @param _order The order to broadcast
     /// @param _signature The order's signature. Should be signed by _order.maker
-    function broadcastOrder(
+    function _broadcastOrder(
         ILimitOrderProtocol.Order memory _order,
         bytes calldata _signature
-    ) public virtual {
+    ) internal virtual {
         bytes32 orderHash = limitOrderProtocol.hashOrder(_order);
         require(
             SignatureChecker.isValidSignatureNow(
