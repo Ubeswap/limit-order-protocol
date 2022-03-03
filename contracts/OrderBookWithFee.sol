@@ -9,7 +9,6 @@ import "./OrderBook.sol";
 
 /// @title Public order book with fees
 contract OrderBookWithFee is OrderBook {
-    uint256 public constant MINIMUM_FEE = 1;
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -27,7 +26,6 @@ contract OrderBookWithFee is OrderBook {
         address _feeRecipient
     ) public {
         require(_feeRecipient != address(0), "OBWF: Invalid fee recipient");
-        require(MINIMUM_FEE <= _fee && _fee <= BPS, "OBWF: Invalid fee");
         uint256 feeAmount = _fee.mul(_order.makingAmount).div(BPS);
         if (feeAmount > 0) {
             IERC20(_order.makerAsset).safeTransferFrom(
