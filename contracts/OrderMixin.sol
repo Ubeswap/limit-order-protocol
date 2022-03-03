@@ -78,6 +78,11 @@ abstract contract OrderMixin is
     uint256 constant private _ORDER_DOES_NOT_EXIST = 0;
     uint256 constant private _ORDER_FILLED = 1;
 
+    // Used to pack these values into an array (Stack to deep)
+    uint256 constant private _MAKING_AMOUNT = 0;
+    uint256 constant private _TAKING_AMOUNT = 1;
+    uint256 constant private _THRESHOLD_AMOUNT = 2;
+
     /// @notice Stores unfilled amounts for each order plus one.
     /// Therefore 0 means order doesn't exist and 1 means order was filled
     mapping(bytes32 => uint256) private _remaining;
@@ -141,17 +146,13 @@ abstract contract OrderMixin is
     /// @notice Fills an order. If one doesn't exist (first fill) it will be created using order.makerAssetData
     /// @param order Order quote to fill
     /// @param signature Signature to confirm quote ownership
-    /// @param makingAmount Making amount
-    /// @param takingAmount Taking amount
-    /// @param thresholdAmount Specifies maximum allowed takingAmount when takingAmount is zero, otherwise specifies minimum allowed makingAmount
+    /// @param amounts [Making amount, Taking amount, Threshold amount]
     function fillOrder(
         Order memory order,
         bytes calldata signature,
-        uint256 makingAmount,
-        uint256 takingAmount,
-        uint256 thresholdAmount
+        uint256[3] memory amounts
     ) external returns(uint256 /* actualMakingAmount */, uint256 /* actualTakingAmount */) {
-        return fillOrderTo(order, signature, makingAmount, takingAmount, thresholdAmount, msg.sender);
+        return _fillOrderTo(order, signature, amounts, msg.sender, new bytes(0));
     }
 
     /// @notice Same as `fillOrder` but calls permit first,
@@ -159,42 +160,78 @@ abstract contract OrderMixin is
     /// Also allows to specify funds destination instead of `msg.sender`
     /// @param order Order quote to fill
     /// @param signature Signature to confirm quote ownership
-    /// @param makingAmount Making amount
-    /// @param takingAmount Taking amount
-    /// @param thresholdAmount Specifies maximum allowed takingAmount when takingAmount is zero, otherwise specifies minimum allowed makingAmount
+    /// @param amounts [Making amount, Taking amount, Threshold amount]
     /// @param target Address that will receive swap funds
     /// @param permit Should consist of abiencoded token address and encoded `IERC20Permit.permit` call.
     /// @dev See tests for examples
     function fillOrderToWithPermit(
         Order memory order,
         bytes calldata signature,
-        uint256 makingAmount,
-        uint256 takingAmount,
-        uint256 thresholdAmount,
+        uint256[3] memory amounts,
         address target,
         bytes calldata permit
     ) external returns(uint256 /* actualMakingAmount */, uint256 /* actualTakingAmount */) {
         require(permit.length >= 20, "LOP: permit length too low");
         (address token, bytes calldata permitData) = permit.decodeTargetAndData();
         _permit(token, permitData);
-        return fillOrderTo(order, signature, makingAmount, takingAmount, thresholdAmount, target);
+        return _fillOrderTo(order, signature, amounts, target, new bytes(0));
+    }
+
+    /// @notice Same as `fillOrderTo` but allows for additional interaction between asset transfers
+    /// @param order Order quote to fill
+    /// @param signature Signature to confirm quote ownership
+    /// @param amounts [Making amount, Taking amount, Threshold amount]
+    /// @param target Address that will receive swap funds
+    /// @param extraInteraction Address that will receive swap funds
+    function fillOrderWithExtraInteraction(
+        Order memory order,
+        bytes calldata signature,
+        uint256[3] memory amounts,
+        address target,
+        bytes calldata extraInteraction
+    ) public returns(uint256 /* actualMakingAmount */, uint256 /* actualTakingAmount */) {
+        return _fillOrderTo(
+            order,
+            signature,
+            amounts,
+            target,
+            extraInteraction
+        );
     }
 
     /// @notice Same as `fillOrder` but allows to specify funds destination instead of `msg.sender`
     /// @param order Order quote to fill
     /// @param signature Signature to confirm quote ownership
-    /// @param makingAmount Making amount
-    /// @param takingAmount Taking amount
-    /// @param thresholdAmount Specifies maximum allowed takingAmount when takingAmount is zero, otherwise specifies minimum allowed makingAmount
+    /// @param amounts [Making amount, Taking amount, Threshold amount]
     /// @param target Address that will receive swap funds
     function fillOrderTo(
         Order memory order,
         bytes calldata signature,
-        uint256 makingAmount,
-        uint256 takingAmount,
-        uint256 thresholdAmount,
+        uint256[3] memory amounts,
         address target
     ) public returns(uint256 /* actualMakingAmount */, uint256 /* actualTakingAmount */) {
+        return _fillOrderTo(
+            order,
+            signature,
+            amounts,
+            target,
+            new bytes(0)
+        );
+    }
+
+    /// @notice Same as `fillOrder` but allows to specify funds destination instead of `msg.sender`
+    /// @param order Order quote to fill
+    /// @param signature Signature to confirm quote ownership
+    /// @param amounts [Making amount, Taking amount, Threshold amount]
+    /// @param target Address that will receive swap funds
+    /// @param extraInteraction If specified, will add interaction between asset transfers
+    function _fillOrderTo(
+        Order memory order,
+        bytes calldata signature,
+        uint256[3] memory amounts,
+        address target,
+        bytes memory extraInteraction
+    ) internal returns(uint256 /* actualMakingAmount */, uint256 /* actualTakingAmount */) {
         require(target != address(0), "LOP: zero target is forbidden");
         bytes32 orderHash = hashOrder(order);
 
@@ -222,34 +259,34 @@ abstract contract OrderMixin is
             }
 
             // Compute maker and taker assets amount
-            if ((takingAmount == 0) == (makingAmount == 0)) {
+            if ((amounts[_TAKING_AMOUNT] == 0) == (amounts[_MAKING_AMOUNT] == 0)) {
                 revert("LOP: only one amount should be 0");
-            } else if (takingAmount == 0) {
-                uint256 requestedMakingAmount = makingAmount;
-                if (makingAmount > remainingMakerAmount) {
-                    makingAmount = remainingMakerAmount;
+            } else if (amounts[_TAKING_AMOUNT] == 0) {
+                uint256 requestedMakingAmount = amounts[_MAKING_AMOUNT];
+                if (amounts[_MAKING_AMOUNT] > remainingMakerAmount) {
+                    amounts[_MAKING_AMOUNT] = remainingMakerAmount;
                 }
-                takingAmount = _callGetter(order.getTakerAmount, order.makingAmount, makingAmount, order.takingAmount);
+                amounts[_TAKING_AMOUNT] = _callGetter(order.getTakerAmount, order.makingAmount, amounts[_MAKING_AMOUNT], order.takingAmount);
                 // check that actual rate is not worse than what was expected
-                // takingAmount / makingAmount <= thresholdAmount / requestedMakingAmount
-                require(takingAmount * requestedMakingAmount <= thresholdAmount * makingAmount, "LOP: taking amount too high");
+                // amounts[_TAKING_AMOUNT] / amounts[_MAKING_AMOUNT] <= amounts[_THRESHOLD_AMOUNT] / requestedMakingAmount
+                require(amounts[_TAKING_AMOUNT] * requestedMakingAmount <= amounts[_THRESHOLD_AMOUNT] * amounts[_MAKING_AMOUNT], "LOP: taking amount too high");
             } else {
-                uint256 requestedTakingAmount = takingAmount;
-                makingAmount = _callGetter(order.getMakerAmount, order.takingAmount, takingAmount, order.makingAmount);
-                if (makingAmount > remainingMakerAmount) {
-                    makingAmount = remainingMakerAmount;
-                    takingAmount = _callGetter(order.getTakerAmount, order.makingAmount, makingAmount, order.takingAmount);
+                uint256 requestedTakingAmount = amounts[_TAKING_AMOUNT];
+                amounts[_MAKING_AMOUNT] = _callGetter(order.getMakerAmount, order.takingAmount, amounts[_TAKING_AMOUNT], order.makingAmount);
+                if (amounts[_MAKING_AMOUNT] > remainingMakerAmount) {
+                    amounts[_MAKING_AMOUNT] = remainingMakerAmount;
+                    amounts[_TAKING_AMOUNT] = _callGetter(order.getTakerAmount, order.makingAmount, amounts[_MAKING_AMOUNT], order.takingAmount);
                 }
                 // check that actual rate is not worse than what was expected
-                // makingAmount / takingAmount >= thresholdAmount / requestedTakingAmount
-                require(makingAmount * requestedTakingAmount >= thresholdAmount * takingAmount, "LOP: making amount too low");
+                // amounts[_MAKING_AMOUNT] / amounts[_TAKING_AMOUNT] >= amounts[_THRESHOLD_AMOUNT] / requestedTakingAmount
+                require(amounts[_MAKING_AMOUNT] * requestedTakingAmount >= amounts[_THRESHOLD_AMOUNT] * amounts[_TAKING_AMOUNT], "LOP: making amount too low");
             }
 
-            require(makingAmount > 0 && takingAmount > 0, "LOP: can't swap 0 amount");
+            require(amounts[_MAKING_AMOUNT] > 0 && amounts[_TAKING_AMOUNT] > 0, "LOP: can't swap 0 amount");
 
             // Update remaining amount in storage
             unchecked {
-                remainingMakerAmount = remainingMakerAmount - makingAmount;
+                remainingMakerAmount = remainingMakerAmount - amounts[_MAKING_AMOUNT];
                 _remaining[orderHash] = remainingMakerAmount + 1;
             }
             emit OrderFilled(msg.sender, orderHash, remainingMakerAmount);
@@ -262,7 +299,7 @@ abstract contract OrderMixin is
                 IERC20.transferFrom.selector,
                 uint256(uint160(msg.sender)),
                 uint256(uint160(order.receiver == address(0) ? order.maker : order.receiver)),
-                takingAmount,
+                amounts[_TAKING_AMOUNT],
                 order.takerAssetData
             )
         );
@@ -272,7 +309,16 @@ abstract contract OrderMixin is
             // proceed only if interaction length is enough to store address
             (address interactionTarget, bytes memory interactionData) = order.interaction.decodeTargetAndCalldata();
             InteractiveNotificationReceiver(interactionTarget).notifyFillOrder(
-                msg.sender, order.makerAsset, order.takerAsset, makingAmount, takingAmount, interactionData
+                msg.sender, order.makerAsset, order.takerAsset, amounts[_MAKING_AMOUNT], amounts[_TAKING_AMOUNT], interactionData
+            );
+        }
+
+        // Handle external extraInteraction
+        if (extraInteraction.length >= 20) {
+            // proceed only if interaction length is enough to store address
+            (address interactionTarget, bytes memory interactionData) = extraInteraction.decodeTargetAndCalldata();
+            InteractiveNotificationReceiver(interactionTarget).notifyFillOrder(
+                msg.sender, order.makerAsset, order.takerAsset, amounts[_MAKING_AMOUNT], amounts[_TAKING_AMOUNT], interactionData
             );
         }
 
@@ -283,12 +329,12 @@ abstract contract OrderMixin is
                 IERC20.transferFrom.selector,
                 uint256(uint160(order.maker)),
                 uint256(uint160(target)),
-                makingAmount,
+                amounts[_MAKING_AMOUNT],
                 order.makerAssetData
             )
         );
 
-        return (makingAmount, takingAmount);
+        return (amounts[_MAKING_AMOUNT], amounts[_TAKING_AMOUNT]);
     }
 
     /// @notice Checks order predicate
