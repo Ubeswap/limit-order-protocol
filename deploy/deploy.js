@@ -18,10 +18,17 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 
     const orderBook = await deploy('OrderBookWithFee', {
         from: deployer,
-        args: [limitOrderProtocol.address, 5, '0x97A9681612482A22b7877afbF8430EDC76159Cae'],
+        args: [limitOrderProtocol.address],
     });
 
     console.log('OrderBookWithFee deployed to:', orderBook.address);
+
+    const ubeswapOrderBook = await deploy('UbeswapOrderBook', {
+        from: deployer,
+        args: [limitOrderProtocol.address, 5, '0x97A9681612482A22b7877afbF8430EDC76159Cae'],
+    });
+
+    console.log('UbeswapOrderBook deployed to:', ubeswapOrderBook.address);
 
     const orderRFQBook = await deploy('OrderRFQBook', {
         from: deployer,
