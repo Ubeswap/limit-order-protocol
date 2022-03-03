@@ -292,6 +292,27 @@ abstract contract OrderMixin is
             emit OrderFilled(msg.sender, orderHash, remainingMakerAmount);
         }
 
+        // Maker => Taker
+        _makeCall(
+            order.makerAsset,
+            abi.encodePacked(
+                IERC20.transferFrom.selector,
+                uint256(uint160(order.maker)),
+                uint256(uint160(target)),
+                amounts[_MAKING_AMOUNT],
+                order.makerAssetData
+            )
+        );
+
+        // Handle external extraInteraction
+        if (extraInteraction.length >= 20) {
+            // proceed only if interaction length is enough to store address
+            (address interactionTarget, bytes memory interactionData) = extraInteraction.decodeTargetAndCalldata();
+            InteractiveNotificationReceiver(interactionTarget).notifyFillOrder(
+                msg.sender, order.makerAsset, order.takerAsset, amounts[_MAKING_AMOUNT], amounts[_TAKING_AMOUNT], interactionData
+            );
+        }
+        
         // Taker => Maker
         _makeCall(
             order.takerAsset,
@@ -312,27 +333,6 @@ abstract contract OrderMixin is
                 msg.sender, order.makerAsset, order.takerAsset, amounts[_MAKING_AMOUNT], amounts[_TAKING_AMOUNT], interactionData
             );
         }
-
-        // Handle external extraInteraction
-        if (extraInteraction.length >= 20) {
-            // proceed only if interaction length is enough to store address
-            (address interactionTarget, bytes memory interactionData) = extraInteraction.decodeTargetAndCalldata();
-            InteractiveNotificationReceiver(interactionTarget).notifyFillOrder(
-                msg.sender, order.makerAsset, order.takerAsset, amounts[_MAKING_AMOUNT], amounts[_TAKING_AMOUNT], interactionData
-            );
-        }
-
-        // Maker => Taker
-        _makeCall(
-            order.makerAsset,
-            abi.encodePacked(
-                IERC20.transferFrom.selector,
-                uint256(uint160(order.maker)),
-                uint256(uint160(target)),
-                amounts[_MAKING_AMOUNT],
-                order.makerAssetData
-            )
-        );
 
         return (amounts[_MAKING_AMOUNT], amounts[_TAKING_AMOUNT]);
     }
