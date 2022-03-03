@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="https://app.1inch.io/assets/images/logo.svg" width="200" alt="1inch network" />
-</p>
-
 # Ubeswap Limit Order Protocol Smart Contract
 
 [![Build Status](https://github.com/1inch/limit-order-protocol/workflows/CI/badge.svg)](https://github.com/1inch/limit-order-protocol/actions)
