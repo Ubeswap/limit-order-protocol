@@ -47,7 +47,7 @@ contract UbeswapOrderBook is OrderBook, Ownable {
     function broadcastOrder(
         ILimitOrderProtocol.Order memory _order,
         bytes calldata _signature
-    ) public override {
+    ) public {
         if (feeRecipient != address(0) && fee > 0) {
             uint256 feeAmount = fee.mul(_order.makingAmount).div(BPS);
             if (feeAmount > 0) {
@@ -58,6 +58,6 @@ contract UbeswapOrderBook is OrderBook, Ownable {
                 );
             }
         }
-        super.broadcastOrder(_order, _signature);
+        _broadcastOrder(_order, _signature);
     }
 }
