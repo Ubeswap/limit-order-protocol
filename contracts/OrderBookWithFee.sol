@@ -15,9 +15,8 @@ contract OrderBookWithFee is OrderBook {
     /// @notice Denominator for the fee
     uint256 public constant FEE_DENOMINATOR = 1_000_000;
 
-    constructor(LimitOrderProtocol _limitOrderProtocol)
-        OrderBook(_limitOrderProtocol)
-    {}
+    // solhint-disable-next-line no-empty-blocks
+    constructor(LimitOrderProtocol _limitOrderProtocol) OrderBook(_limitOrderProtocol) {}
 
     function broadcastOrder(
         LimitOrderProtocol.Order memory _order,
