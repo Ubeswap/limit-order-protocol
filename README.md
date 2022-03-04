@@ -1,17 +1,14 @@
 # Ubeswap Limit Order Protocol Smart Contract
 
-[![Build Status](https://github.com/1inch/limit-order-protocol/workflows/CI/badge.svg)](https://github.com/1inch/limit-order-protocol/actions)
-[![Coverage Status](https://coveralls.io/repos/github/1inch/limit-order-protocol/badge.svg?branch=master)](https://coveralls.io/github/1inch/limit-order-protocol?branch=master)
-
 ### About
 
-You can find general overview and docs on 1inch limit orders protocol [here](https://docs.1inch.io/docs/limit-order-protocol/introduction/).
+The Ubeswap limit order system is a modified for of the 1inch limit order protocol. The fork begins at commit 2a2e1ca5115de764a689238a26b7c3153c4857d7.
 
-This repository contains a smart contract for EVM based blockchains (Ethereum, Binance Smart Chain, etc.), this contract is core part of 1inch limit order protocol.
+Our modifications introduce the following:
+  - A public order book that enables decentralized order tracking
+  - Flash order fulfillments
 
-Contract allows users to place limit orders, that later could be filled on-chain. Limit order itself is a data structure created off-chain and signed according to EIP-712.
-
-Key features of the protocol is **extreme flexibility** and **high gas efficiency** that achieved by using following order types.
+You can find the original documentation for the 1inch limit order protocol [here](https://docs.1inch.io/docs/limit-order-protocol/introduction/).
 
 ### Limit Order
 Extremely **flexible** limit order, can be configured with:
