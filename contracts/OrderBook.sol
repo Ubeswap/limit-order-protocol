@@ -29,7 +29,7 @@ abstract contract OrderBook {
     function _broadcastOrder(
         LimitOrderProtocol.Order memory _order,
         bytes calldata _signature
-    ) internal virtual {
+    ) internal {
         bytes32 orderHash = limitOrderProtocol.hashOrder(_order);
         require(
             SignatureChecker.isValidSignatureNow(

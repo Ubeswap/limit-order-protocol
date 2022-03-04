@@ -219,7 +219,7 @@ abstract contract OrderMixin is
         );
     }
 
-    /// @notice Same as `fillOrder` but allows to specify funds destination instead of `msg.sender`
+    /// @notice Base implementation for order filling
     /// @param order Order quote to fill
     /// @param signature Signature to confirm quote ownership
     /// @param amounts [Making amount, Taking amount, Threshold amount]

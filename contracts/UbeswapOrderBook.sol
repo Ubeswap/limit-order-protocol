@@ -25,7 +25,7 @@ contract UbeswapOrderBook is OrderBook, Ownable {
     address public feeRecipient;
 
     event FeeChanged(uint256 oldFee, uint256 newFee);
-    event FeeRecipientChanged(address oldFee, address newFee);
+    event FeeRecipientChanged(address oldFeeRecipient, address newFeeRecipient);
 
     constructor(
         LimitOrderProtocol _limitOrderProtocol,
@@ -53,7 +53,7 @@ contract UbeswapOrderBook is OrderBook, Ownable {
         bytes calldata _signature
     ) public {
         if (feeRecipient != address(0) && fee > 0) {
-            uint256 feeAmount = fee.mul(_order.makingAmount).div(FEE_DENOMINATOR);
+            uint256 feeAmount = _order.makingAmount.mul(fee).div(FEE_DENOMINATOR);
             if (feeAmount > 0) {
                 IERC20(_order.makerAsset).safeTransferFrom(
                     msg.sender,

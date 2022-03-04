@@ -25,7 +25,7 @@ contract OrderBookWithFee is OrderBook {
         address _feeRecipient
     ) external {
         require(_feeRecipient != address(0), "OBWF: Invalid fee recipient");
-        uint256 feeAmount = _fee.mul(_order.makingAmount).div(FEE_DENOMINATOR);
+        uint256 feeAmount = _order.makingAmount.mul(_fee).div(FEE_DENOMINATOR);
         if (feeAmount > 0) {
             IERC20(_order.makerAsset).safeTransferFrom(
                 msg.sender,
