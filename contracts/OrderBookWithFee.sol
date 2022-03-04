@@ -12,8 +12,8 @@ contract OrderBookWithFee is OrderBook {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
-    /// @notice Denominator for bps
-    uint256 public constant BPS = 1000;
+    /// @notice Denominator for the fee
+    uint256 public constant FEE_DENOMINATOR = 1_000_000;
 
     constructor(LimitOrderProtocol _limitOrderProtocol)
         OrderBook(_limitOrderProtocol)
@@ -26,7 +26,7 @@ contract OrderBookWithFee is OrderBook {
         address _feeRecipient
     ) public {
         require(_feeRecipient != address(0), "OBWF: Invalid fee recipient");
-        uint256 feeAmount = _fee.mul(_order.makingAmount).div(BPS);
+        uint256 feeAmount = _fee.mul(_order.makingAmount).div(FEE_DENOMINATOR);
         if (feeAmount > 0) {
             IERC20(_order.makerAsset).safeTransferFrom(
                 msg.sender,

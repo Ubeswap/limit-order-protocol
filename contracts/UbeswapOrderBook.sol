@@ -13,10 +13,12 @@ contract UbeswapOrderBook is OrderBook, Ownable {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
-    /// @notice Denominator for bps
-    uint256 public constant BPS = 1000;
+    /// @notice Maximum fee is 10 bps
+    uint256 public constant MAX_FEE = 1_000;
+    /// @notice Denominator for the fee
+    uint256 public constant FEE_DENOMINATOR = 1_000_000;
 
-    /// @notice Fee in bps for broadcasting an order
+    /// @notice Fee for broadcasting an order. Always divided by FEE_DENOMINATOR
     uint256 public fee;
 
     /// @notice Fee recipient
@@ -35,6 +37,7 @@ contract UbeswapOrderBook is OrderBook, Ownable {
     }
 
     function changeFee(uint256 _fee) external onlyOwner {
+        require(_fee <= MAX_FEE, "UOB: Fee exceeds MAX_FEE");
         emit FeeChanged(fee, _fee);
         fee = _fee;
     }
@@ -49,7 +52,7 @@ contract UbeswapOrderBook is OrderBook, Ownable {
         bytes calldata _signature
     ) public {
         if (feeRecipient != address(0) && fee > 0) {
-            uint256 feeAmount = fee.mul(_order.makingAmount).div(BPS);
+            uint256 feeAmount = fee.mul(_order.makingAmount).div(FEE_DENOMINATOR);
             if (feeAmount > 0) {
                 IERC20(_order.makerAsset).safeTransferFrom(
                     msg.sender,

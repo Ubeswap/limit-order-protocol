@@ -117,7 +117,7 @@ describe('OrderBookWithFee', async function () {
         this.weth = await WrappedTokenMock.new('WETH', 'WETH');
 
         this.swap = await LimitOrderProtocol.new();
-        this.ubeswapOrderBook = await UbeswapOrderBook.new(this.swap.address, 5, addr2);
+        this.ubeswapOrderBook = await UbeswapOrderBook.new(this.swap.address, 500, addr2);
         this.orderBook = await OrderBookWithFee.new(this.swap.address);
         this.orderRFQBook = await OrderRFQBook.new(this.swap.address);
 
@@ -135,14 +135,14 @@ describe('OrderBookWithFee', async function () {
             const signature = ethSigUtil.signTypedMessage(account.getPrivateKey(), { data });
             const orderHash = bufferToHex(ethSigUtil.TypedDataUtils.sign(data));
 
-            const expectedFee = 50;
-            await this.dai.mint(addr1, 50);
+            const expectedFee = '5';
+            await this.dai.mint(addr1, expectedFee);
             await this.dai.approve(this.orderBook.address, expectedFee);
 
-            expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq('50');
+            expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq(expectedFee);
             expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('0');
             // 5 bps to `addr2`
-            const { logs } = await this.orderBook.broadcastOrder(order, signature, 5, addr2);
+            const { logs } = await this.orderBook.broadcastOrder(order, signature, 500, addr2);
             expect(logs.length).to.be.eq(1);
             expect(logs[0].args.maker).to.be.eq(wallet);
             expect(logs[0].args.orderHash).to.be.eq(orderHash);
@@ -150,7 +150,7 @@ describe('OrderBookWithFee', async function () {
             expect(logs[0].args.signature).to.be.eq(signature);
 
             expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq('0');
-            expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('50');
+            expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq(expectedFee);
         });
 
         it('fail to broadcast if signature is invalid', async function () {
@@ -170,11 +170,11 @@ describe('OrderBookWithFee', async function () {
             const signature = ethSigUtil.signTypedMessage(account.getPrivateKey(), { data });
             const orderHash = bufferToHex(ethSigUtil.TypedDataUtils.sign(data));
 
-            const expectedFee = 50;
-            await this.dai.mint(addr1, 50);
+            const expectedFee = '5';
+            await this.dai.mint(addr1, expectedFee);
             await this.dai.approve(this.ubeswapOrderBook.address, expectedFee);
 
-            expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq('50');
+            expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq(expectedFee);
             expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('0');
             // 5 bps to `addr2`
             const { logs } = await this.ubeswapOrderBook.broadcastOrder(order, signature);
@@ -185,7 +185,7 @@ describe('OrderBookWithFee', async function () {
             expect(logs[0].args.signature).to.be.eq(signature);
 
             expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq('0');
-            expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('50');
+            expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq(expectedFee);
         });
 
         it('fail to broadcast if signature is invalid', async function () {
