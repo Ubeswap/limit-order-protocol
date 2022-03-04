@@ -30,13 +30,6 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 
     console.log('UbeswapOrderBook deployed to:', ubeswapOrderBook.address);
 
-    const orderRFQBook = await deploy('OrderRFQBook', {
-        from: deployer,
-        args: [limitOrderProtocol.address],
-    });
-
-    console.log('OrderRFQBook deployed to:', orderRFQBook.address);
-
     if (!noVerify.includes(await getChainId())) {
         await hre.run('verify:verify', {
             address: limitOrderProtocol.address,

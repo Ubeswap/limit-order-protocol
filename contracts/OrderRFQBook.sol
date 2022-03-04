@@ -4,8 +4,8 @@ pragma solidity 0.8.11;
 
 import "./LimitOrderProtocol.sol";
 
-/// @title Public order book for OrderRFQ
-contract OrderRFQBook is EIP712("Ubeswap Limit Order Protocol", "2") {
+/// @title Internal order book for OrderRFQ
+abstract contract OrderRFQBook is EIP712("Ubeswap Limit Order Protocol", "2") {
     /// @notice The limit order protocol this orderbook references
     LimitOrderProtocol public immutable limitOrderProtocol;
 
@@ -24,10 +24,10 @@ contract OrderRFQBook is EIP712("Ubeswap Limit Order Protocol", "2") {
     /// @notice Broadcast a limit order with its signature
     /// @param _order The order to broadcast
     /// @param _signature The order's signature. Should be signed by _order.maker
-    function broadcastOrderRFQ(
+    function _broadcastOrderRFQ(
         LimitOrderProtocol.OrderRFQ memory _order,
         bytes calldata _signature
-    ) external {
+    ) internal {
         bytes32 orderHash = limitOrderProtocol.hashOrderRFQ(_order);
         require(SignatureChecker.isValidSignatureNow(_order.maker, orderHash, _signature), "OB: bad signature");
         emit OrderBroadcastedRFQ(_order.maker, orderHash, _order, _signature);

@@ -23,7 +23,7 @@ contract OrderBookWithFee is OrderBook {
         bytes calldata _signature,
         uint256 _fee,
         address _feeRecipient
-    ) public {
+    ) external {
         require(_feeRecipient != address(0), "OBWF: Invalid fee recipient");
         uint256 feeAmount = _fee.mul(_order.makingAmount).div(FEE_DENOMINATOR);
         if (feeAmount > 0) {

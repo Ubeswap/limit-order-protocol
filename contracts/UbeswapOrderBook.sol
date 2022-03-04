@@ -32,6 +32,7 @@ contract UbeswapOrderBook is OrderBook, Ownable {
         uint256 _fee,
         address _feeRecipient
     ) OrderBook(_limitOrderProtocol) {
+        require(_fee <= MAX_FEE, "UOB: Fee exceeds MAX_FEE");
         fee = _fee;
         feeRecipient = _feeRecipient;
     }

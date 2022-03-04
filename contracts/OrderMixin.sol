@@ -177,28 +177,6 @@ abstract contract OrderMixin is
         return _fillOrderTo(order, signature, amounts, target, new bytes(0));
     }
 
-    /// @notice Same as `fillOrderTo` but allows for additional interaction between asset transfers
-    /// @param order Order quote to fill
-    /// @param signature Signature to confirm quote ownership
-    /// @param amounts [Making amount, Taking amount, Threshold amount]
-    /// @param target Address that will receive swap funds
-    /// @param extraInteraction Address that will receive swap funds
-    function fillOrderWithExtraInteraction(
-        Order memory order,
-        bytes calldata signature,
-        uint256[3] memory amounts,
-        address target,
-        bytes calldata extraInteraction
-    ) public returns(uint256 /* actualMakingAmount */, uint256 /* actualTakingAmount */) {
-        return _fillOrderTo(
-            order,
-            signature,
-            amounts,
-            target,
-            extraInteraction
-        );
-    }
-
     /// @notice Same as `fillOrder` but allows to specify funds destination instead of `msg.sender`
     /// @param order Order quote to fill
     /// @param signature Signature to confirm quote ownership
@@ -219,12 +197,34 @@ abstract contract OrderMixin is
         );
     }
 
+    /// @notice Same as `fillOrderTo` but allows for additional interaction between asset transfers
+    /// @param order Order quote to fill
+    /// @param signature Signature to confirm quote ownership
+    /// @param amounts [Making amount, Taking amount, Threshold amount]
+    /// @param target Address that will receive swap funds
+    /// @param extraInteraction Optional interaction. If present, is triggered between asset transfers
+    function fillOrderToWithExtraInteraction(
+        Order memory order,
+        bytes calldata signature,
+        uint256[3] memory amounts,
+        address target,
+        bytes calldata extraInteraction
+    ) public returns(uint256 /* actualMakingAmount */, uint256 /* actualTakingAmount */) {
+        return _fillOrderTo(
+            order,
+            signature,
+            amounts,
+            target,
+            extraInteraction
+        );
+    }
+
     /// @notice Same as `fillOrder` but allows to specify funds destination instead of `msg.sender`
     /// @param order Order quote to fill
     /// @param signature Signature to confirm quote ownership
     /// @param amounts [Making amount, Taking amount, Threshold amount]
     /// @param target Address that will receive swap funds
-    /// @param extraInteraction If specified, will add interaction between asset transfers
+    /// @param extraInteraction Optional interaction. If present, is triggered between asset transfers
     function _fillOrderTo(
         Order memory order,
         bytes calldata signature,

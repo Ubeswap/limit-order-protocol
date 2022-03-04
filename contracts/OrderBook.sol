@@ -6,9 +6,8 @@ import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 import "./LimitOrderProtocol.sol";
 
-/// @title Public order book for Order
-// solhint-disable-next-line max-states-count
-contract OrderBook {
+/// @title Internal base OrderBook
+abstract contract OrderBook {
     /// @notice The limit order protocol this orderbook references
     LimitOrderProtocol public immutable limitOrderProtocol;
 

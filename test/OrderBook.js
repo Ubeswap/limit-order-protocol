@@ -10,7 +10,7 @@ const WrappedTokenMock = artifacts.require('WrappedTokenMock');
 const LimitOrderProtocol = artifacts.require('LimitOrderProtocol');
 const UbeswapOrderBook = artifacts.require('UbeswapOrderBook');
 const OrderBookWithFee = artifacts.require('OrderBookWithFee');
-const OrderRFQBook = artifacts.require('OrderRFQBook');
+const OrderRFQBook = artifacts.require('PublicOrderRFQBook');
 
 const { buildOrderData, buildOrderRFQData } = require('./helpers/orderUtils');
 const { cutLastArg } = require('./helpers/utils');
