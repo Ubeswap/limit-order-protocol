@@ -8,6 +8,7 @@ const Wallet = require('ethereumjs-wallet').default;
 const TokenMock = artifacts.require('TokenMock');
 const WrappedTokenMock = artifacts.require('WrappedTokenMock');
 const LimitOrderProtocol = artifacts.require('LimitOrderProtocol');
+const UbeswapOrderBook = artifacts.require('UbeswapOrderBook');
 const OrderBookWithFee = artifacts.require('OrderBookWithFee');
 const OrderRFQBook = artifacts.require('OrderRFQBook');
 
@@ -116,6 +117,7 @@ describe('OrderBookWithFee', async function () {
         this.weth = await WrappedTokenMock.new('WETH', 'WETH');
 
         this.swap = await LimitOrderProtocol.new();
+        this.ubeswapOrderBook = await UbeswapOrderBook.new(this.swap.address, 5, addr2);
         this.orderBook = await OrderBookWithFee.new(this.swap.address);
         this.orderRFQBook = await OrderRFQBook.new(this.swap.address);
 
@@ -125,7 +127,7 @@ describe('OrderBookWithFee', async function () {
         this.chainId = await this.dai.getChainId();
     });
 
-    describe('Broadcast Order', async function () {
+    describe('OrderBookWithFee', async function () {
         it('broadcasts w/ fee', async function () {
             const makingAmount = 10_000;
             const order = buildOrder(this.swap, this.dai, this.weth, makingAmount, 1);
@@ -157,6 +159,41 @@ describe('OrderBookWithFee', async function () {
             const signature = ethSigUtil.signTypedMessage(account.getPrivateKey(), { data });
             const anotherOrder = buildOrder(this.swap, this.dai, this.weth, 1, 2);
             await expectRevert(this.orderBook.broadcastOrder(anotherOrder, signature, 5, addr2), 'OB: bad signature');
+        });
+    });
+
+    describe('UbeswapOrderBook', async function () {
+        it('broadcasts w/ fee', async function () {
+            const makingAmount = 10_000;
+            const order = buildOrder(this.swap, this.dai, this.weth, makingAmount, 1);
+            const data = buildOrderData(this.chainId, this.swap.address, order);
+            const signature = ethSigUtil.signTypedMessage(account.getPrivateKey(), { data });
+            const orderHash = bufferToHex(ethSigUtil.TypedDataUtils.sign(data));
+
+            const expectedFee = 50;
+            await this.dai.mint(addr1, 50);
+            await this.dai.approve(this.ubeswapOrderBook.address, expectedFee);
+
+            expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq('50');
+            expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('0');
+            // 5 bps to `addr2`
+            const { logs } = await this.ubeswapOrderBook.broadcastOrder(order, signature);
+            expect(logs.length).to.be.eq(1);
+            expect(logs[0].args.maker).to.be.eq(wallet);
+            expect(logs[0].args.orderHash).to.be.eq(orderHash);
+            expectEqualOrder(logs[0].args.order, order);
+            expect(logs[0].args.signature).to.be.eq(signature);
+
+            expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq('0');
+            expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('50');
+        });
+
+        it('fail to broadcast if signature is invalid', async function () {
+            const order = buildOrder(this.swap, this.dai, this.weth, 1, 1);
+            const data = buildOrderData(this.chainId, this.swap.address, order);
+            const signature = ethSigUtil.signTypedMessage(account.getPrivateKey(), { data });
+            const anotherOrder = buildOrder(this.swap, this.dai, this.weth, 1, 2);
+            await expectRevert(this.ubeswapOrderBook.broadcastOrder(anotherOrder, signature), 'OB: bad signature');
         });
     });
 
