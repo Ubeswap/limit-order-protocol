@@ -13,7 +13,6 @@ const OrderRFQBook = artifacts.require('OrderRFQBook');
 
 const { buildOrderData, buildOrderRFQData } = require('./helpers/orderUtils');
 const { cutLastArg } = require('./helpers/utils');
-const { ZERO_ADDRESS } = require('@openzeppelin/test-helpers/src/constants');
 
 const expectEqualOrder = (a, b) => {
     expect(a.salt).to.be.eq(b.salt);
@@ -141,14 +140,15 @@ describe('OrderBookWithFee', async function () {
             expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq('50');
             expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('0');
             // 5 bps to `addr2`
-            await this.orderBook.broadcastOrder(order, signature, 5, addr2);
+            const { logs } = await this.orderBook.broadcastOrder(order, signature, 5, addr2);
+            expect(logs.length).to.be.eq(1);
+            expect(logs[0].args.maker).to.be.eq(wallet);
+            expect(logs[0].args.orderHash).to.be.eq(orderHash);
+            expectEqualOrder(logs[0].args.order, order);
+            expect(logs[0].args.signature).to.be.eq(signature);
+
             expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq('0');
             expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('50');
-
-            const fetchedOrder = await this.orderBook.orders(orderHash);
-            const fetchedSignature = await this.orderBook.signatures(orderHash);
-            expectEqualOrder(order, fetchedOrder);
-            expect(fetchedSignature).to.be.eq(signature);
         });
 
         it('fail to broadcast if signature is invalid', async function () {
@@ -171,11 +171,8 @@ describe('OrderBookWithFee', async function () {
             expect(logs.length).to.be.eq(1);
             expect(logs[0].args.maker).to.be.eq(wallet);
             expect(logs[0].args.orderHash).to.be.eq(orderHash);
-
-            const fetchedOrder = await this.orderRFQBook.orderRFQs(orderHash);
-            const fetchedSignature = await this.orderRFQBook.signatures(orderHash);
-            expectEqualOrderRFQ(order, fetchedOrder);
-            expect(fetchedSignature).to.be.eq(signature);
+            expectEqualOrderRFQ(logs[0].args.order, order);
+            expect(logs[0].args.signature).to.be.eq(signature);
         });
 
         it('fail to broadcast if signature is invalid', async function () {

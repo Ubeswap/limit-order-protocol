@@ -15,12 +15,12 @@ contract OrderBookWithFee is OrderBook {
     /// @notice Denominator for bps
     uint256 public constant BPS = 1000;
 
-    constructor(ILimitOrderProtocol _limitOrderProtocol)
+    constructor(LimitOrderProtocol _limitOrderProtocol)
         OrderBook(_limitOrderProtocol)
     {}
 
     function broadcastOrder(
-        ILimitOrderProtocol.Order memory _order,
+        LimitOrderProtocol.Order memory _order,
         bytes calldata _signature,
         uint256 _fee,
         address _feeRecipient

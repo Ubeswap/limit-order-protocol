@@ -9,13 +9,13 @@ contract OrderRFQBook is EIP712("Ubeswap Limit Order Protocol", "2") {
     /// @notice The limit order protocol this orderbook references
     LimitOrderProtocol public immutable limitOrderProtocol;
 
-    /// @notice Mapping from order hash to an OrderRFQ
-    mapping(bytes32 => LimitOrderProtocol.OrderRFQ) public orderRFQs;
-    /// @notice Mapping from order hash to an OrderRFQ's signature
-    mapping(bytes32 => bytes) public signatures;
-
     /// @notice Emitted every time an order is broadcasted
-    event OrderBroadcastedRFQ(address indexed maker, bytes32 orderHash);
+    event OrderBroadcastedRFQ(
+        address indexed maker,
+        bytes32 orderHash,
+        LimitOrderProtocol.OrderRFQ order,
+        bytes signature
+    );
 
     constructor(LimitOrderProtocol _limitOrderProtocol) {
         limitOrderProtocol = _limitOrderProtocol;
@@ -30,9 +30,7 @@ contract OrderRFQBook is EIP712("Ubeswap Limit Order Protocol", "2") {
     ) external {
         bytes32 orderHash = limitOrderProtocol.hashOrderRFQ(_order);
         require(SignatureChecker.isValidSignatureNow(_order.maker, orderHash, _signature), "OB: bad signature");
-        orderRFQs[orderHash] = _order;
-        signatures[orderHash] = _signature;
-        emit OrderBroadcastedRFQ(_order.maker, orderHash);
+        emit OrderBroadcastedRFQ(_order.maker, orderHash, _order, _signature);
     }
 
     // solhint-disable-next-line func-name-mixedcase
@@ -40,4 +38,3 @@ contract OrderRFQBook is EIP712("Ubeswap Limit Order Protocol", "2") {
         return _domainSeparatorV4();
     }
 }
-

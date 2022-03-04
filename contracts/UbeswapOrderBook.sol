@@ -26,7 +26,7 @@ contract UbeswapOrderBook is OrderBook, Ownable {
     event FeeRecipientChanged(address oldFee, address newFee);
 
     constructor(
-        ILimitOrderProtocol _limitOrderProtocol,
+        LimitOrderProtocol _limitOrderProtocol,
         uint256 _fee,
         address _feeRecipient
     ) OrderBook(_limitOrderProtocol) {
@@ -45,7 +45,7 @@ contract UbeswapOrderBook is OrderBook, Ownable {
     }
 
     function broadcastOrder(
-        ILimitOrderProtocol.Order memory _order,
+        LimitOrderProtocol.Order memory _order,
         bytes calldata _signature
     ) public {
         if (feeRecipient != address(0) && fee > 0) {
