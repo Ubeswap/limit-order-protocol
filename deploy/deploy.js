@@ -25,7 +25,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 
     const ubeswapOrderBook = await deploy('UbeswapOrderBook', {
         from: deployer,
-        args: [limitOrderProtocol.address, 5, '0x97A9681612482A22b7877afbF8430EDC76159Cae'],
+        args: [limitOrderProtocol.address, 500, '0x97A9681612482A22b7877afbF8430EDC76159Cae'],
     });
 
     console.log('UbeswapOrderBook deployed to:', ubeswapOrderBook.address);
@@ -44,4 +44,4 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     }
 };
 
-module.exports.skip = async () => true;
+module.exports.skip = async () => false;
