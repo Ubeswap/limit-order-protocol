@@ -43,7 +43,7 @@ const expectEqualOrderRFQ = (a, b) => {
     expect(a.takingAmount.toString()).to.be.eq(b.takingAmount.toString());
 };
 
-describe('OrderBookWithFee', async function () {
+describe('OrderBooks', async function () {
     let addr1, addr2, wallet;
 
     const privatekey = '59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d';
@@ -115,9 +115,10 @@ describe('OrderBookWithFee', async function () {
     beforeEach(async function () {
         this.dai = await TokenMock.new('DAI', 'DAI');
         this.weth = await WrappedTokenMock.new('WETH', 'WETH');
+        this.ube = await TokenMock.new('UBE', 'UBE');
 
         this.swap = await LimitOrderProtocol.new();
-        this.ubeswapOrderBook = await UbeswapOrderBook.new(this.swap.address, 500, addr2);
+        this.ubeswapOrderBook = await UbeswapOrderBook.new(this.swap.address, 500, addr2, this.ube.address);
         this.orderBook = await OrderBookWithFee.new(this.swap.address);
         this.orderRFQBook = await OrderRFQBook.new(this.swap.address);
 
@@ -125,6 +126,7 @@ describe('OrderBookWithFee', async function () {
         // from within the EVM as from the JSON RPC interface.
         // See https://github.com/trufflesuite/ganache-core/issues/515
         this.chainId = await this.dai.getChainId();
+        this.ube.mint(this.ubeswapOrderBook.address, 1_000_000);
     });
 
     describe('OrderBookWithFee', async function () {
@@ -186,6 +188,61 @@ describe('OrderBookWithFee', async function () {
 
             expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq('0');
             expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq(expectedFee);
+        });
+
+        it('broadcasts w/ fee and subsidy', async function () {
+            const makingAmount = 10_000;
+            const order = buildOrder(this.swap, this.dai, this.weth, makingAmount, 1);
+            const data = buildOrderData(this.chainId, this.swap.address, order);
+            const signature = ethSigUtil.signTypedMessage(account.getPrivateKey(), { data });
+            const orderHash = bufferToHex(ethSigUtil.TypedDataUtils.sign(data));
+
+            const expectedFee = '5';
+            await this.dai.mint(addr1, expectedFee);
+            await this.dai.approve(this.ubeswapOrderBook.address, expectedFee);
+
+            // Enable subsidies on DAI
+            const expectedSubsidy = '5';
+            expect((await this.ubeswapOrderBook.subsidyRate(this.dai.address)).toString()).to.be.eq('0');
+            await this.ubeswapOrderBook.changeSubsidyRate(this.dai.address, 500);
+            expect((await this.ubeswapOrderBook.subsidyRate(this.dai.address)).toString()).to.be.eq('500');
+
+            expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq(expectedFee);
+            expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('0');
+            expect((await this.ube.balanceOf(addr1)).toString()).to.be.eq('0');
+            // 5 bps to `addr2`
+            const { logs } = await this.ubeswapOrderBook.broadcastOrder(order, signature);
+            expect(logs.length).to.be.eq(1);
+            expect(logs[0].args.maker).to.be.eq(wallet);
+            expect(logs[0].args.orderHash).to.be.eq(orderHash);
+            expectEqualOrder(logs[0].args.order, order);
+            expect(logs[0].args.signature).to.be.eq(signature);
+
+            expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq('0');
+            expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq(expectedFee);
+            expect((await this.ube.balanceOf(addr1)).toString()).to.be.eq(expectedSubsidy);
+        });
+
+        it('change subsidy values', async function () {
+            // Test changing subsidy currency
+            expect(await this.ubeswapOrderBook.subsidyCurrency()).to.be.eq(this.ube.address);
+            await this.ubeswapOrderBook.changeSubsidyCurrency(this.dai.address);
+            expect(await this.ubeswapOrderBook.subsidyCurrency()).to.be.eq(this.dai.address);
+            await expectRevert(this.ubeswapOrderBook.changeSubsidyCurrency(this.ube.address, { from: wallet }), 'Ownable: caller is not the owner');
+
+            // Test changing subsidy rate
+            expect((await this.ubeswapOrderBook.subsidyRate(this.dai.address)).toString()).to.be.eq('0');
+            await this.ubeswapOrderBook.changeSubsidyRate(this.dai.address, 500);
+            expect((await this.ubeswapOrderBook.subsidyRate(this.dai.address)).toString()).to.be.eq('500');
+            await expectRevert(this.ubeswapOrderBook.changeSubsidyRate(this.dai.address, 0, { from: wallet }), 'Ownable: caller is not the owner');
+        });
+
+        it('rescues ERC20', async function () {
+            const contractBalance = (await this.ube.balanceOf(this.ubeswapOrderBook.address)).toString();
+            expect((await this.ube.balanceOf(addr1)).toString()).to.be.eq('0');
+            await expectRevert(this.ubeswapOrderBook.rescueERC20(this.ube.address, contractBalance, { from: wallet }), 'Ownable: caller is not the owner');
+            await this.ubeswapOrderBook.rescueERC20(this.ube.address, contractBalance);
+            expect((await this.ube.balanceOf(addr1)).toString()).to.be.eq(contractBalance);
         });
 
         it('fail to broadcast if signature is invalid', async function () {
