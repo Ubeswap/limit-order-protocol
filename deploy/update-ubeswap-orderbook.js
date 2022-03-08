@@ -16,16 +16,14 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 
     console.log('LimitOrderProtocol deployed to:', limitOrderProtocol.address);
 
-    const orderBook = await deploy('OrderBookWithFee', {
-        from: deployer,
-        args: [limitOrderProtocol.address],
-    });
-
-    console.log('OrderBookWithFee deployed to:', orderBook.address);
-
     const ubeswapOrderBook = await deploy('UbeswapOrderBook', {
         from: deployer,
-        args: [limitOrderProtocol.address, 500, '0x97A9681612482A22b7877afbF8430EDC76159Cae'],
+        args: [
+            limitOrderProtocol.address,
+            500,
+            '0x97A9681612482A22b7877afbF8430EDC76159Cae',
+            '0x00be915b9dcf56a3cbe739d9b9c202ca692409ec',
+        ],
     });
 
     console.log('UbeswapOrderBook deployed to:', ubeswapOrderBook.address);
