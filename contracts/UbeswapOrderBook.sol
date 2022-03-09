@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
+import "./interfaces/IOrderRewardDistributor.sol";
 import "./OrderBook.sol";
 
 /// @title Public Ubeswap order book
@@ -21,37 +22,29 @@ contract UbeswapOrderBook is OrderBook, Ownable {
     /// @notice Fee for broadcasting an order. In units of PCT_DENOMINATOR
     uint256 public fee;
 
-    /// @notice Currency which subsidies are paid out in
-    IERC20 public subsidyCurrency;
-    /// @notice Mapping of each makerToken's subsidy rate
-    mapping(address => uint256) public subsidyRate;
-
     /// @notice Fee recipient
     address public feeRecipient;
 
+    /// @notice Reward distributor module
+    IOrderRewardDistributor public rewardDistributor;
+
     event FeeChanged(uint256 oldFee, uint256 newFee);
     event FeeRecipientChanged(address oldFeeRecipient, address newFeeRecipient);
-    event SubsidyCurrencyChanged(
-        address oldSubsidyCurrency,
-        address newSubsidyCurrency
+    event RewardDistributorChanged(
+        address oldRewardDistributor,
+        address newRewardDistributor
     );
-    event SubsidyRateChanged(
-        address token,
-        uint256 oldSubsidyRate,
-        uint256 newSubsidyRate
-    );
-    event ERC20Rescued(address token, uint256 amount);
 
     constructor(
         LimitOrderProtocol _limitOrderProtocol,
         uint256 _fee,
         address _feeRecipient,
-        IERC20 _subsidyCurrency
+        IOrderRewardDistributor _rewardDistributor
     ) OrderBook(_limitOrderProtocol) {
         require(_fee <= MAX_FEE, "UOB: Fee exceeds MAX_FEE");
         fee = _fee;
         feeRecipient = _feeRecipient;
-        subsidyCurrency = _subsidyCurrency;
+        rewardDistributor = _rewardDistributor;
     }
 
     /// @notice Admin function to change the fee rate
@@ -69,37 +62,17 @@ contract UbeswapOrderBook is OrderBook, Ownable {
         feeRecipient = _feeRecipient;
     }
 
-    /// @notice Admin function to change the subsidy rate for a makerToken
-    /// @param _token The makerToken
-    /// @param _subsidyRate The new subsidy rate
-    function changeSubsidyRate(address _token, uint256 _subsidyRate)
+    /// @notice Admin function to change the reward distributor contract
+    /// @param _rewardDistributor The new reward distributor. 0 address will disable rewards
+    function changeRewardDistributor(IOrderRewardDistributor _rewardDistributor)
         external
         onlyOwner
     {
-        // solhint-disable-next-line reason-string
-        require(
-            _subsidyRate <= PCT_DENOMINATOR,
-            "UOB: Subsidy exceeds PCT_DENOMINATOR"
+        emit RewardDistributorChanged(
+            address(rewardDistributor),
+            address(_rewardDistributor)
         );
-        emit SubsidyRateChanged(_token, subsidyRate[_token], _subsidyRate);
-        subsidyRate[_token] = _subsidyRate;
-    }
-
-    /// @notice Admin function to change the subsidy currency
-    /// @param _subsidyCurrency The new subsidy currency
-    function changeSubsidyCurrency(IERC20 _subsidyCurrency) external onlyOwner {
-        emit SubsidyCurrencyChanged(
-            address(subsidyCurrency),
-            address(_subsidyCurrency)
-        );
-        subsidyCurrency = _subsidyCurrency;
-    }
-
-    /// @notice Admin function to rescue any ERC20 tokens in the contract
-    /// @param _token The currency to rescue
-    function rescueERC20(IERC20 _token, uint256 _amount) external onlyOwner {
-        emit ERC20Rescued(address(_token), _amount);
-        _token.safeTransfer(msg.sender, _amount);
+        rewardDistributor = _rewardDistributor;
     }
 
     function broadcastOrder(
@@ -117,16 +90,9 @@ contract UbeswapOrderBook is OrderBook, Ownable {
                     feeAmount
                 );
             }
-            uint256 subsidyAmount = _order
-                .makingAmount
-                .mul(subsidyRate[_order.makerAsset])
-                .div(PCT_DENOMINATOR);
-            if (
-                subsidyAmount > 0 &&
-                address(subsidyCurrency) != address(0) &&
-                subsidyCurrency.balanceOf(address(this)) >= subsidyAmount
-            ) {
-                subsidyCurrency.safeTransfer(msg.sender, subsidyAmount);
+
+            if (address(rewardDistributor) != address(0)) {
+                rewardDistributor.distributeReward(_order, msg.sender);
             }
         }
         _broadcastOrder(_order, _signature);

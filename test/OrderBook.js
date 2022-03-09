@@ -9,6 +9,7 @@ const TokenMock = artifacts.require('TokenMock');
 const WrappedTokenMock = artifacts.require('WrappedTokenMock');
 const LimitOrderProtocol = artifacts.require('LimitOrderProtocol');
 const UbeswapOrderBook = artifacts.require('UbeswapOrderBook');
+const OrderBookRewardDistributor = artifacts.require('OrderBookRewardDistributor');
 const OrderBookWithFee = artifacts.require('OrderBookWithFee');
 const OrderRFQBook = artifacts.require('PublicOrderRFQBook');
 
@@ -118,7 +119,8 @@ describe('OrderBooks', async function () {
         this.ube = await TokenMock.new('UBE', 'UBE');
 
         this.swap = await LimitOrderProtocol.new();
-        this.ubeswapOrderBook = await UbeswapOrderBook.new(this.swap.address, 500, addr2, this.ube.address);
+        this.rewardDistributor = await OrderBookRewardDistributor.new(this.ube.address);
+        this.ubeswapOrderBook = await UbeswapOrderBook.new(this.swap.address, 500, addr2, this.rewardDistributor.address);
         this.orderBook = await OrderBookWithFee.new(this.swap.address);
         this.orderRFQBook = await OrderRFQBook.new(this.swap.address);
 
@@ -126,7 +128,8 @@ describe('OrderBooks', async function () {
         // from within the EVM as from the JSON RPC interface.
         // See https://github.com/trufflesuite/ganache-core/issues/515
         this.chainId = await this.dai.getChainId();
-        this.ube.mint(this.ubeswapOrderBook.address, 1_000_000);
+        this.ube.mint(this.rewardDistributor.address, 1_000_000);
+        this.rewardDistributor.addToWhitelist(this.ubeswapOrderBook.address);
     });
 
     describe('OrderBookWithFee', async function () {
@@ -190,7 +193,7 @@ describe('OrderBooks', async function () {
             expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq(expectedFee);
         });
 
-        it('broadcasts w/ fee and subsidy', async function () {
+        it('broadcasts w/ fee and reward', async function () {
             const makingAmount = 10_000;
             const order = buildOrder(this.swap, this.dai, this.weth, makingAmount, 1);
             const data = buildOrderData(this.chainId, this.swap.address, order);
@@ -202,10 +205,8 @@ describe('OrderBooks', async function () {
             await this.dai.approve(this.ubeswapOrderBook.address, expectedFee);
 
             // Enable subsidies on DAI
-            const expectedSubsidy = '5';
-            expect((await this.ubeswapOrderBook.subsidyRate(this.dai.address)).toString()).to.be.eq('0');
-            await this.ubeswapOrderBook.changeSubsidyRate(this.dai.address, 500);
-            expect((await this.ubeswapOrderBook.subsidyRate(this.dai.address)).toString()).to.be.eq('500');
+            const expectedReward = '5';
+            await this.rewardDistributor.changeRewardRate(this.dai.address, 500);
 
             expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq(expectedFee);
             expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('0');
@@ -220,28 +221,34 @@ describe('OrderBooks', async function () {
 
             expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq('0');
             expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq(expectedFee);
-            expect((await this.ube.balanceOf(addr1)).toString()).to.be.eq(expectedSubsidy);
+            expect((await this.ube.balanceOf(addr1)).toString()).to.be.eq(expectedReward);
+        });
+        
+        it('reverts if EOA calls distribute reward', async function () {
+            // Test changing reward currency
+            const order = buildOrder(this.swap, this.dai, this.weth, 10_000, 1);
+            await expectRevert(this.rewardDistributor.distributeReward(order, addr1), 'Whitelistable: caller not whitelisted');
         });
 
-        it('change subsidy values', async function () {
-            // Test changing subsidy currency
-            expect(await this.ubeswapOrderBook.subsidyCurrency()).to.be.eq(this.ube.address);
-            await this.ubeswapOrderBook.changeSubsidyCurrency(this.dai.address);
-            expect(await this.ubeswapOrderBook.subsidyCurrency()).to.be.eq(this.dai.address);
-            await expectRevert(this.ubeswapOrderBook.changeSubsidyCurrency(this.ube.address, { from: wallet }), 'Ownable: caller is not the owner');
+        it('change reward values', async function () {
+            // Test changing reward currency
+            expect(await this.rewardDistributor.rewardCurrency()).to.be.eq(this.ube.address);
+            await this.rewardDistributor.changeRewardCurrency(this.dai.address);
+            expect(await this.rewardDistributor.rewardCurrency()).to.be.eq(this.dai.address);
+            await expectRevert(this.rewardDistributor.changeRewardCurrency(this.ube.address, { from: wallet }), 'Ownable: caller is not the owner');
 
-            // Test changing subsidy rate
-            expect((await this.ubeswapOrderBook.subsidyRate(this.dai.address)).toString()).to.be.eq('0');
-            await this.ubeswapOrderBook.changeSubsidyRate(this.dai.address, 500);
-            expect((await this.ubeswapOrderBook.subsidyRate(this.dai.address)).toString()).to.be.eq('500');
-            await expectRevert(this.ubeswapOrderBook.changeSubsidyRate(this.dai.address, 0, { from: wallet }), 'Ownable: caller is not the owner');
+            // Test changing reward rate
+            expect((await this.rewardDistributor.rewardRate(this.dai.address)).toString()).to.be.eq('0');
+            await this.rewardDistributor.changeRewardRate(this.dai.address, 500);
+            expect((await this.rewardDistributor.rewardRate(this.dai.address)).toString()).to.be.eq('500');
+            await expectRevert(this.rewardDistributor.changeRewardRate(this.dai.address, 0, { from: wallet }), 'Ownable: caller is not the owner');
         });
 
         it('rescues ERC20', async function () {
-            const contractBalance = (await this.ube.balanceOf(this.ubeswapOrderBook.address)).toString();
+            const contractBalance = (await this.ube.balanceOf(this.rewardDistributor.address)).toString();
             expect((await this.ube.balanceOf(addr1)).toString()).to.be.eq('0');
-            await expectRevert(this.ubeswapOrderBook.rescueERC20(this.ube.address, contractBalance, { from: wallet }), 'Ownable: caller is not the owner');
-            await this.ubeswapOrderBook.rescueERC20(this.ube.address, contractBalance);
+            await expectRevert(this.rewardDistributor.rescueERC20(this.ube.address, contractBalance, { from: wallet }), 'Ownable: caller is not the owner');
+            await this.rewardDistributor.rescueERC20(this.ube.address, contractBalance);
             expect((await this.ube.balanceOf(addr1)).toString()).to.be.eq(contractBalance);
         });
 
