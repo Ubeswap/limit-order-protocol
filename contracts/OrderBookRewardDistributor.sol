@@ -44,16 +44,11 @@ contract OrderBookRewardDistributor is
 
     /// @notice Admin function to change the reward rate for a makerToken
     /// @param _token The makerToken
-    /// @param _rewardRate The new reward rate
+    /// @param _rewardRate The new reward rate. NOTE: This value can exceed PCT_DENOMINATOR
     function changeRewardRate(address _token, uint256 _rewardRate)
         external
         onlyOwner
     {
-        // solhint-disable-next-line reason-string
-        require(
-            _rewardRate <= PCT_DENOMINATOR,
-            "UOB: rewardRate exceeds PCT_DENOMINATOR"
-        );
         emit RewardRateChanged(_token, rewardRate[_token], _rewardRate);
         rewardRate[_token] = _rewardRate;
     }
