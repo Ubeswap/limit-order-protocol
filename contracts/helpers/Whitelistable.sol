@@ -6,8 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 abstract contract Whitelistable is Ownable {
     mapping(address => bool) public whitelist;
 
-    event AddedToWhitelist(address user);
-    event RemovedFromWhitelist(address user);
+    event WhitelistChanged(address user, bool whitelisted);
 
     modifier onlyWhitelist() {
         // solhint-disable-next-line reason-string
@@ -17,12 +16,12 @@ abstract contract Whitelistable is Ownable {
 
     function addToWhitelist(address _user) external onlyOwner {
         whitelist[_user] = true;
-        emit AddedToWhitelist(_user);
+        emit WhitelistChanged(_user, true);
     }
 
     function removeFromWhitelist(address _user) external onlyOwner {
         whitelist[_user] = false;
-        emit RemovedFromWhitelist(_user);
+        emit WhitelistChanged(_user, false);
     }
 }
 
