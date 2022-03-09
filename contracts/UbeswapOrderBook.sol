@@ -16,7 +16,7 @@ contract UbeswapOrderBook is OrderBook, Ownable {
 
     /// @notice Maximum fee is 10 bps
     uint256 public constant MAX_FEE = 1_000;
-    /// @notice Denominator for fee and subsidyRate
+    /// @notice Denominator for fee
     uint256 public constant PCT_DENOMINATOR = 1_000_000;
 
     /// @notice Fee for broadcasting an order. In units of PCT_DENOMINATOR

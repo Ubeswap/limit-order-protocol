@@ -19,7 +19,7 @@ contract OrderBookRewardDistributor is
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
-    /// @notice Denominator for fee and rewardRate
+    /// @notice Denominator for rewardRate
     uint256 public constant PCT_DENOMINATOR = 1_000_000;
 
     /// @notice Currency which rewards are paid out in
@@ -42,9 +42,9 @@ contract OrderBookRewardDistributor is
         rewardCurrency = _rewardCurrency;
     }
 
-    /// @notice Admin function to change the Reward rate for a makerToken
+    /// @notice Admin function to change the reward rate for a makerToken
     /// @param _token The makerToken
-    /// @param _rewardRate The new Reward rate
+    /// @param _rewardRate The new reward rate
     function changeRewardRate(address _token, uint256 _rewardRate)
         external
         onlyOwner
@@ -58,8 +58,8 @@ contract OrderBookRewardDistributor is
         rewardRate[_token] = _rewardRate;
     }
 
-    /// @notice Admin function to change the Reward currency
-    /// @param _rewardCurrency The new Reward currency
+    /// @notice Admin function to change the reward currency
+    /// @param _rewardCurrency The new reward currency
     function changeRewardCurrency(IERC20 _rewardCurrency) external onlyOwner {
         emit RewardCurrencyChanged(
             address(rewardCurrency),
@@ -75,6 +75,9 @@ contract OrderBookRewardDistributor is
         _token.safeTransfer(msg.sender, _amount);
     }
 
+    /// @notice Whitelist-only function to distribute rewards based on an order
+    /// @param _order The order to distribute rewards for
+    /// @param _rewardRecipient The address that will receive the rewards
     function distributeReward(
         LimitOrderProtocol.Order memory _order,
         address _rewardRecipient
