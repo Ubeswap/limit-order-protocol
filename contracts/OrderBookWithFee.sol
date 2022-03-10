@@ -53,10 +53,14 @@ contract OrderBookWithFee is OrderBook, Ownable {
         feeRecipient = _feeRecipient;
     }
 
+    /// @notice Logs an order/signature pair. Also executes the order placement fee.
+    /// @param _order The order to broadcast
+    /// @param _signature A valid signature of _order
+    /// @param _notificationTarget A notification target. Disable by providing the 0 address
     function broadcastOrder(
         LimitOrderProtocol.Order memory _order,
         bytes calldata _signature,
-        address notificationTarget
+        address _notificationTarget
     ) public {
         if (feeRecipient != address(0) && fee > 0) {
             uint256 feeAmount = _order.makingAmount.mul(fee).div(
@@ -70,8 +74,8 @@ contract OrderBookWithFee is OrderBook, Ownable {
                 );
             }
 
-            if (notificationTarget != address(0)) {
-                IOrderNotificationReceiver(notificationTarget)
+            if (_notificationTarget != address(0)) {
+                IOrderNotificationReceiver(_notificationTarget)
                     .notifyOrderBroadcasted(_order, msg.sender);
             }
         }
