@@ -8,7 +8,6 @@ const Wallet = require('ethereumjs-wallet').default;
 const TokenMock = artifacts.require('TokenMock');
 const WrappedTokenMock = artifacts.require('WrappedTokenMock');
 const LimitOrderProtocol = artifacts.require('LimitOrderProtocol');
-const UbeswapOrderBook = artifacts.require('UbeswapOrderBook');
 const OrderBookRewardDistributor = artifacts.require('OrderBookRewardDistributor');
 const OrderBookWithFee = artifacts.require('OrderBookWithFee');
 const OrderRFQBook = artifacts.require('PublicOrderRFQBook');
@@ -121,8 +120,7 @@ describe('OrderBooks', async function () {
 
         this.swap = await LimitOrderProtocol.new();
         this.rewardDistributor = await OrderBookRewardDistributor.new(this.ube.address);
-        this.ubeswapOrderBook = await UbeswapOrderBook.new(this.swap.address, 500, addr2);
-        this.orderBook = await OrderBookWithFee.new(this.swap.address);
+        this.orderBook = await OrderBookWithFee.new(this.swap.address, 500, addr2);
         this.orderRFQBook = await OrderRFQBook.new(this.swap.address);
 
         // We get the chain id from the contract because Ganache (used for coverage) does not return the same chain id
@@ -130,7 +128,7 @@ describe('OrderBooks', async function () {
         // See https://github.com/trufflesuite/ganache-core/issues/515
         this.chainId = await this.dai.getChainId();
         this.ube.mint(this.rewardDistributor.address, 1_000_000);
-        this.rewardDistributor.addToWhitelist(this.ubeswapOrderBook.address);
+        this.rewardDistributor.addToWhitelist(this.orderBook.address);
     });
 
     describe('OrderBookWithFee', async function () {
@@ -148,42 +146,7 @@ describe('OrderBooks', async function () {
             expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq(expectedFee);
             expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('0');
             // 5 bps to `addr2`
-            const { logs } = await this.orderBook.broadcastOrder(order, signature, 500, addr2);
-            expect(logs.length).to.be.eq(1);
-            expect(logs[0].args.maker).to.be.eq(wallet);
-            expect(logs[0].args.orderHash).to.be.eq(orderHash);
-            expectEqualOrder(logs[0].args.order, order);
-            expect(logs[0].args.signature).to.be.eq(signature);
-
-            expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq('0');
-            expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq(expectedFee);
-        });
-
-        it('fail to broadcast if signature is invalid', async function () {
-            const order = buildOrder(this.swap, this.dai, this.weth, 1, 1);
-            const data = buildOrderData(this.chainId, this.swap.address, order);
-            const signature = ethSigUtil.signTypedMessage(account.getPrivateKey(), { data });
-            const anotherOrder = buildOrder(this.swap, this.dai, this.weth, 1, 2);
-            await expectRevert(this.orderBook.broadcastOrder(anotherOrder, signature, 5, addr2), 'OB: bad signature');
-        });
-    });
-
-    describe('UbeswapOrderBook', async function () {
-        it('broadcasts w/ fee', async function () {
-            const makingAmount = 10_000;
-            const order = buildOrder(this.swap, this.dai, this.weth, makingAmount, 1);
-            const data = buildOrderData(this.chainId, this.swap.address, order);
-            const signature = ethSigUtil.signTypedMessage(account.getPrivateKey(), { data });
-            const orderHash = bufferToHex(ethSigUtil.TypedDataUtils.sign(data));
-
-            const expectedFee = '5';
-            await this.dai.mint(addr1, expectedFee);
-            await this.dai.approve(this.ubeswapOrderBook.address, expectedFee);
-
-            expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq(expectedFee);
-            expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('0');
-            // 5 bps to `addr2`
-            const { logs } = await this.ubeswapOrderBook.broadcastOrder(order, signature, ZERO_ADDRESS);
+            const { logs } = await this.orderBook.broadcastOrder(order, signature, ZERO_ADDRESS);
             expect(logs.length).to.be.eq(1);
             expect(logs[0].args.maker).to.be.eq(wallet);
             expect(logs[0].args.orderHash).to.be.eq(orderHash);
@@ -203,7 +166,7 @@ describe('OrderBooks', async function () {
 
             const expectedFee = '5';
             await this.dai.mint(addr1, expectedFee);
-            await this.dai.approve(this.ubeswapOrderBook.address, expectedFee);
+            await this.dai.approve(this.orderBook.address, expectedFee);
 
             // Enable subsidies on DAI
             const expectedReward = '5';
@@ -213,7 +176,7 @@ describe('OrderBooks', async function () {
             expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('0');
             expect((await this.ube.balanceOf(addr1)).toString()).to.be.eq('0');
             // 5 bps to `addr2`
-            const { logs } = await this.ubeswapOrderBook.broadcastOrder(order, signature, this.rewardDistributor.address);
+            const { logs } = await this.orderBook.broadcastOrder(order, signature, this.rewardDistributor.address);
             expect(logs.length).to.be.eq(1);
             expect(logs[0].args.maker).to.be.eq(wallet);
             expect(logs[0].args.orderHash).to.be.eq(orderHash);
@@ -258,7 +221,7 @@ describe('OrderBooks', async function () {
             const data = buildOrderData(this.chainId, this.swap.address, order);
             const signature = ethSigUtil.signTypedMessage(account.getPrivateKey(), { data });
             const anotherOrder = buildOrder(this.swap, this.dai, this.weth, 1, 2);
-            await expectRevert(this.ubeswapOrderBook.broadcastOrder(anotherOrder, signature, ZERO_ADDRESS), 'OB: bad signature');
+            await expectRevert(this.orderBook.broadcastOrder(anotherOrder, signature, ZERO_ADDRESS), 'OB: bad signature');
         });
     });
 

@@ -18,17 +18,10 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 
     const orderBook = await deploy('OrderBookWithFee', {
         from: deployer,
-        args: [limitOrderProtocol.address],
-    });
-
-    console.log('OrderBookWithFee deployed to:', orderBook.address);
-
-    const ubeswapOrderBook = await deploy('UbeswapOrderBook', {
-        from: deployer,
         args: [limitOrderProtocol.address, 500, '0x97A9681612482A22b7877afbF8430EDC76159Cae'],
     });
 
-    console.log('UbeswapOrderBook deployed to:', ubeswapOrderBook.address);
+    console.log('OrderBookWithFee deployed to:', orderBook.address);
 
     if (!noVerify.includes(await getChainId())) {
         await hre.run('verify:verify', {

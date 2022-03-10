@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./interfaces/IOrderNotificationReceiver.sol";
 import "./helpers/Whitelistable.sol";
 
-/// @title Public Ubeswap order book
+/// @title A permissioned reward distribution module to accompany an OrderBook
 contract OrderBookRewardDistributor is
     IOrderNotificationReceiver,
     Ownable,
