@@ -23,6 +23,13 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 
     console.log('OrderBookWithFee deployed to:', orderBook.address);
 
+    const rewardDistributor = await deploy('OrderBookRewardDistributor', {
+        from: deployer,
+        args: ['0x00be915b9dcf56a3cbe739d9b9c202ca692409ec'],
+    });
+
+    console.log('OrderBookRewardDistributor deployed to:', rewardDistributor.address);
+
     if (!noVerify.includes(await getChainId())) {
         await hre.run('verify:verify', {
             address: limitOrderProtocol.address,
@@ -30,4 +37,4 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     }
 };
 
-module.exports.skip = async () => true;
+module.exports.skip = async () => false;
