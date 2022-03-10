@@ -6,13 +6,12 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
-import "./interfaces/IOrderRewardDistributor.sol";
-import "./OrderBook.sol";
+import "./interfaces/IOrderNotificationReceiver.sol";
 import "./helpers/Whitelistable.sol";
 
 /// @title Public Ubeswap order book
 contract OrderBookRewardDistributor is
-    IOrderRewardDistributor,
+    IOrderNotificationReceiver,
     Ownable,
     Whitelistable
 {
@@ -73,7 +72,7 @@ contract OrderBookRewardDistributor is
     /// @notice Whitelist-only function to distribute rewards based on an order
     /// @param _order The order to distribute rewards for
     /// @param _rewardRecipient The address that will receive the rewards
-    function distributeReward(
+    function notifyOrderBroadcasted(
         LimitOrderProtocol.Order memory _order,
         address _rewardRecipient
     ) public onlyWhitelist {

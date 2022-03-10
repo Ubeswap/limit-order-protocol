@@ -15,6 +15,7 @@ const OrderRFQBook = artifacts.require('PublicOrderRFQBook');
 
 const { buildOrderData, buildOrderRFQData } = require('./helpers/orderUtils');
 const { cutLastArg } = require('./helpers/utils');
+const { ZERO_ADDRESS } = require('@openzeppelin/test-helpers/src/constants');
 
 const expectEqualOrder = (a, b) => {
     expect(a.salt).to.be.eq(b.salt);
@@ -120,7 +121,7 @@ describe('OrderBooks', async function () {
 
         this.swap = await LimitOrderProtocol.new();
         this.rewardDistributor = await OrderBookRewardDistributor.new(this.ube.address);
-        this.ubeswapOrderBook = await UbeswapOrderBook.new(this.swap.address, 500, addr2, this.rewardDistributor.address);
+        this.ubeswapOrderBook = await UbeswapOrderBook.new(this.swap.address, 500, addr2);
         this.orderBook = await OrderBookWithFee.new(this.swap.address);
         this.orderRFQBook = await OrderRFQBook.new(this.swap.address);
 
@@ -182,7 +183,7 @@ describe('OrderBooks', async function () {
             expect((await this.dai.balanceOf(addr1)).toString()).to.be.eq(expectedFee);
             expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('0');
             // 5 bps to `addr2`
-            const { logs } = await this.ubeswapOrderBook.broadcastOrder(order, signature);
+            const { logs } = await this.ubeswapOrderBook.broadcastOrder(order, signature, ZERO_ADDRESS);
             expect(logs.length).to.be.eq(1);
             expect(logs[0].args.maker).to.be.eq(wallet);
             expect(logs[0].args.orderHash).to.be.eq(orderHash);
@@ -212,7 +213,7 @@ describe('OrderBooks', async function () {
             expect((await this.dai.balanceOf(addr2)).toString()).to.be.eq('0');
             expect((await this.ube.balanceOf(addr1)).toString()).to.be.eq('0');
             // 5 bps to `addr2`
-            const { logs } = await this.ubeswapOrderBook.broadcastOrder(order, signature);
+            const { logs } = await this.ubeswapOrderBook.broadcastOrder(order, signature, this.rewardDistributor.address);
             expect(logs.length).to.be.eq(1);
             expect(logs[0].args.maker).to.be.eq(wallet);
             expect(logs[0].args.orderHash).to.be.eq(orderHash);
@@ -224,10 +225,10 @@ describe('OrderBooks', async function () {
             expect((await this.ube.balanceOf(addr1)).toString()).to.be.eq(expectedReward);
         });
         
-        it('reverts if EOA calls distribute reward', async function () {
+        it('reverts if EOA calls notifyOrderBroadcasted', async function () {
             // Test changing reward currency
             const order = buildOrder(this.swap, this.dai, this.weth, 10_000, 1);
-            await expectRevert(this.rewardDistributor.distributeReward(order, addr1), 'Whitelistable: caller not whitelisted');
+            await expectRevert(this.rewardDistributor.notifyOrderBroadcasted(order, addr1), 'Whitelistable: caller not whitelisted');
         });
 
         it('change reward values', async function () {
@@ -257,7 +258,7 @@ describe('OrderBooks', async function () {
             const data = buildOrderData(this.chainId, this.swap.address, order);
             const signature = ethSigUtil.signTypedMessage(account.getPrivateKey(), { data });
             const anotherOrder = buildOrder(this.swap, this.dai, this.weth, 1, 2);
-            await expectRevert(this.ubeswapOrderBook.broadcastOrder(anotherOrder, signature), 'OB: bad signature');
+            await expectRevert(this.ubeswapOrderBook.broadcastOrder(anotherOrder, signature, ZERO_ADDRESS), 'OB: bad signature');
         });
     });
 

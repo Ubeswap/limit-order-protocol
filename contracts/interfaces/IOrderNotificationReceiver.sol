@@ -4,9 +4,9 @@ pragma solidity 0.8.11;
 
 import "../LimitOrderProtocol.sol";
 
-interface IOrderRewardDistributor {
-    function distributeReward(
+interface IOrderNotificationReceiver {
+    function notifyOrderBroadcasted(
         LimitOrderProtocol.Order memory _order,
-        address _rewardRecipient
+        address _caller
     ) external;
 }
