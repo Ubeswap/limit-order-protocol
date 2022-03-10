@@ -6,9 +6,9 @@ import "@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol";
 import "./OrderMixin.sol";
 import "./OrderRFQMixin.sol";
 
-/// @title Ubeswap Limit Order Protocol v2
+/// @title Limit Order Protocol v2
 contract LimitOrderProtocol is
-    EIP712("Ubeswap Limit Order Protocol", "2"),
+    EIP712("Limit Order Protocol", "2"),
     OrderMixin,
     OrderRFQMixin
 {

@@ -1,6 +1,6 @@
 # LimitOrderProtocol
 
-Ubeswap Limit Order Protocol v2
+Limit Order Protocol v2
 
 
 
