@@ -3,6 +3,7 @@
 pragma solidity 0.8.11;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
@@ -10,7 +11,7 @@ import "./interfaces/IOrderNotificationReceiver.sol";
 import "./OrderBook.sol";
 
 /// @title Public order book that accepts fees
-contract OrderBookWithFee is OrderBook, Ownable {
+contract OrderBookWithFee is OrderBook, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -33,7 +34,7 @@ contract OrderBookWithFee is OrderBook, Ownable {
         uint256 _fee,
         address _feeRecipient
     ) OrderBook(_limitOrderProtocol) {
-        require(_fee <= MAX_FEE, "UOB: Fee exceeds MAX_FEE");
+        require(_fee <= MAX_FEE, "OBWF: Fee exceeds MAX_FEE");
         fee = _fee;
         feeRecipient = _feeRecipient;
     }
@@ -41,7 +42,7 @@ contract OrderBookWithFee is OrderBook, Ownable {
     /// @notice Admin function to change the fee rate
     /// @param _fee The new fee
     function changeFee(uint256 _fee) external onlyOwner {
-        require(_fee <= MAX_FEE, "UOB: Fee exceeds MAX_FEE");
+        require(_fee <= MAX_FEE, "OBWF: Fee exceeds MAX_FEE");
         emit FeeChanged(fee, _fee);
         fee = _fee;
     }
@@ -53,7 +54,7 @@ contract OrderBookWithFee is OrderBook, Ownable {
         feeRecipient = _feeRecipient;
     }
 
-    /// @notice Logs an order/signature pair. Also executes the order placement fee.
+    /// @notice Broadcasts a signed order. Also charges the order placement fee.
     /// @param _order The order to broadcast
     /// @param _signature A valid signature of _order
     /// @param _notificationTarget A notification target. Disable by providing the 0 address
@@ -61,7 +62,7 @@ contract OrderBookWithFee is OrderBook, Ownable {
         LimitOrderProtocol.Order memory _order,
         bytes calldata _signature,
         address _notificationTarget
-    ) public {
+    ) public nonReentrant {
         if (feeRecipient != address(0) && fee > 0) {
             uint256 feeAmount = _order.makingAmount.mul(fee).div(
                 PCT_DENOMINATOR
@@ -73,11 +74,10 @@ contract OrderBookWithFee is OrderBook, Ownable {
                     feeAmount
                 );
             }
-
-            if (_notificationTarget != address(0)) {
-                IOrderNotificationReceiver(_notificationTarget)
-                    .notifyOrderBroadcasted(_order, msg.sender);
-            }
+        }
+        if (_notificationTarget != address(0)) {
+            IOrderNotificationReceiver(_notificationTarget)
+                .notifyOrderBroadcasted(_order, msg.sender);
         }
         _broadcastOrder(_order, _signature);
     }

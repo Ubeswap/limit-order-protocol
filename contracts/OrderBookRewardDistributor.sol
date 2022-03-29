@@ -69,6 +69,25 @@ contract OrderBookRewardDistributor is
         _token.safeTransfer(msg.sender, _amount);
     }
 
+    /// @notice Returns an order's reward amount based on the makingAmount and makerAsset.
+    /// @param _order The order to get reward amount for
+    /// @return rewardAmount The amount of rewards or the remaining reward balance of the contract. Whichever is smaller.
+    function orderRewardAmount(LimitOrderProtocol.Order memory _order)
+        public
+        view
+        returns (uint256)
+    {
+        uint256 rewardAmount = _order
+            .makingAmount
+            .mul(rewardRate[_order.makerAsset])
+            .div(PCT_DENOMINATOR);
+        uint256 contractBalance = rewardCurrency.balanceOf(address(this));
+        if (contractBalance < rewardAmount) {
+            return contractBalance;
+        }
+        return rewardAmount;
+    }
+
     /// @notice Whitelist-only function to distribute rewards based on an order
     /// @param _order The order to distribute rewards for
     /// @param _rewardRecipient The address that will receive the rewards
@@ -76,15 +95,8 @@ contract OrderBookRewardDistributor is
         LimitOrderProtocol.Order memory _order,
         address _rewardRecipient
     ) public onlyWhitelist {
-        uint256 rewardAmount = _order
-            .makingAmount
-            .mul(rewardRate[_order.makerAsset])
-            .div(PCT_DENOMINATOR);
-        if (
-            rewardAmount > 0 &&
-            address(rewardCurrency) != address(0) &&
-            rewardCurrency.balanceOf(address(this)) >= rewardAmount
-        ) {
+        uint256 rewardAmount = orderRewardAmount(_order);
+        if (rewardAmount > 0 && address(rewardCurrency) != address(0)) {
             rewardCurrency.safeTransfer(_rewardRecipient, rewardAmount);
         }
     }

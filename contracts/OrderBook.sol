@@ -11,6 +11,9 @@ abstract contract OrderBook {
     /// @notice The limit order protocol this orderbook references
     LimitOrderProtocol public immutable limitOrderProtocol;
 
+    /// @notice Mapping of all broadcasted order hashes
+    mapping(bytes32 => bool) public broadcastedOrderHashes;
+
     /// @notice Emitted every time an order is broadcasted
     event OrderBroadcasted(
         address indexed maker,
@@ -32,6 +35,10 @@ abstract contract OrderBook {
     ) internal {
         bytes32 orderHash = limitOrderProtocol.hashOrder(_order);
         require(
+            !broadcastedOrderHashes[orderHash],
+            "OB: Order already broadcasted"
+        );
+        require(
             SignatureChecker.isValidSignatureNow(
                 _order.maker,
                 orderHash,
@@ -39,6 +46,7 @@ abstract contract OrderBook {
             ),
             "OB: bad signature"
         );
+        broadcastedOrderHashes[orderHash] = true;
 
         emit OrderBroadcasted(_order.maker, orderHash, _order, _signature);
     }
