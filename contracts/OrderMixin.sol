@@ -72,6 +72,13 @@ abstract contract OrderMixin is
         bytes interaction;
     }
 
+    // Amounts used when filling an order
+    struct OrderAmounts {
+        uint256 makingAmount;
+        uint256 takingAmount;
+        uint256 thresholdAmount; // Specifies maximum allowed takingAmount when takingAmount is zero, otherwise specifies minimum allowed makingAmount
+    }
+
     bytes32 constant public LIMIT_ORDER_TYPEHASH = keccak256(
         "Order(uint256 salt,address makerAsset,address takerAsset,address maker,address receiver,address allowedSender,uint256 makingAmount,uint256 takingAmount,bytes makerAssetData,bytes takerAssetData,bytes getMakerAmount,bytes getTakerAmount,bytes predicate,bytes permit,bytes interaction)"
     );
@@ -141,17 +148,13 @@ abstract contract OrderMixin is
     /// @notice Fills an order. If one doesn't exist (first fill) it will be created using order.makerAssetData
     /// @param order Order quote to fill
     /// @param signature Signature to confirm quote ownership
-    /// @param makingAmount Making amount
-    /// @param takingAmount Taking amount
-    /// @param thresholdAmount Specifies maximum allowed takingAmount when takingAmount is zero, otherwise specifies minimum allowed makingAmount
+    /// @param orderAmounts Amounts to fill
     function fillOrder(
         Order memory order,
         bytes calldata signature,
-        uint256 makingAmount,
-        uint256 takingAmount,
-        uint256 thresholdAmount
+        OrderAmounts calldata orderAmounts
     ) external returns(uint256 /* actualMakingAmount */, uint256 /* actualTakingAmount */) {
-        return fillOrderTo(order, signature, makingAmount, takingAmount, thresholdAmount, msg.sender);
+        return _fillOrderTo(order, signature, orderAmounts, msg.sender, new bytes(0));
     }
 
     /// @notice Same as `fillOrder` but calls permit first,
@@ -159,42 +162,78 @@ abstract contract OrderMixin is
     /// Also allows to specify funds destination instead of `msg.sender`
     /// @param order Order quote to fill
     /// @param signature Signature to confirm quote ownership
-    /// @param makingAmount Making amount
-    /// @param takingAmount Taking amount
-    /// @param thresholdAmount Specifies maximum allowed takingAmount when takingAmount is zero, otherwise specifies minimum allowed makingAmount
+    /// @param orderAmounts Amounts to fill
     /// @param target Address that will receive swap funds
     /// @param permit Should consist of abiencoded token address and encoded `IERC20Permit.permit` call.
     /// @dev See tests for examples
     function fillOrderToWithPermit(
         Order memory order,
         bytes calldata signature,
-        uint256 makingAmount,
-        uint256 takingAmount,
-        uint256 thresholdAmount,
+        OrderAmounts calldata orderAmounts,
         address target,
         bytes calldata permit
     ) external returns(uint256 /* actualMakingAmount */, uint256 /* actualTakingAmount */) {
         require(permit.length >= 20, "LOP: permit length too low");
         (address token, bytes calldata permitData) = permit.decodeTargetAndData();
         _permit(token, permitData);
-        return fillOrderTo(order, signature, makingAmount, takingAmount, thresholdAmount, target);
+        return _fillOrderTo(order, signature, orderAmounts, target, new bytes(0));
     }
 
     /// @notice Same as `fillOrder` but allows to specify funds destination instead of `msg.sender`
     /// @param order Order quote to fill
     /// @param signature Signature to confirm quote ownership
-    /// @param makingAmount Making amount
-    /// @param takingAmount Taking amount
-    /// @param thresholdAmount Specifies maximum allowed takingAmount when takingAmount is zero, otherwise specifies minimum allowed makingAmount
+    /// @param orderAmounts Amounts to fill
     /// @param target Address that will receive swap funds
     function fillOrderTo(
         Order memory order,
         bytes calldata signature,
-        uint256 makingAmount,
-        uint256 takingAmount,
-        uint256 thresholdAmount,
+        OrderAmounts calldata orderAmounts,
         address target
     ) public returns(uint256 /* actualMakingAmount */, uint256 /* actualTakingAmount */) {
+        return _fillOrderTo(
+            order,
+            signature,
+            orderAmounts,
+            target,
+            new bytes(0)
+        );
+    }
+
+    /// @notice Same as `fillOrderTo` but allows for additional interaction between asset transfers
+    /// @param order Order quote to fill
+    /// @param signature Signature to confirm quote ownership
+    /// @param orderAmounts Amounts to fill
+    /// @param target Address that will receive swap funds
+    /// @param extraInteraction Optional interaction. If present, is triggered between asset transfers
+    function fillOrderToWithExtraInteraction(
+        Order memory order,
+        bytes calldata signature,
+        OrderAmounts calldata orderAmounts,
+        address target,
+        bytes calldata extraInteraction
+    ) public returns(uint256 /* actualMakingAmount */, uint256 /* actualTakingAmount */) {
+        return _fillOrderTo(
+            order,
+            signature,
+            orderAmounts,
+            target,
+            extraInteraction
+        );
+    }
+
+    /// @notice Base implementation for order filling
+    /// @param order Order quote to fill
+    /// @param signature Signature to confirm quote ownership
+    /// @param orderAmounts Amounts to fill
+    /// @param target Address that will receive swap funds
+    /// @param extraInteraction Optional interaction. If present, is triggered between asset transfers
+    function _fillOrderTo(
+        Order memory order,
+        bytes calldata signature,
+        OrderAmounts memory orderAmounts,
+        address target,
+        bytes memory extraInteraction
+    ) internal returns(uint256 /* actualMakingAmount */, uint256 /* actualTakingAmount */) {
         require(target != address(0), "LOP: zero target is forbidden");
         bytes32 orderHash = hashOrder(order);
 
@@ -222,58 +261,37 @@ abstract contract OrderMixin is
             }
 
             // Compute maker and taker assets amount
-            if ((takingAmount == 0) == (makingAmount == 0)) {
+            if ((orderAmounts.takingAmount == 0) == (orderAmounts.makingAmount == 0)) {
                 revert("LOP: only one amount should be 0");
-            } else if (takingAmount == 0) {
-                uint256 requestedMakingAmount = makingAmount;
-                if (makingAmount > remainingMakerAmount) {
-                    makingAmount = remainingMakerAmount;
+            } else if (orderAmounts.takingAmount == 0) {
+                uint256 requestedMakingAmount = orderAmounts.makingAmount;
+                if (orderAmounts.makingAmount > remainingMakerAmount) {
+                    orderAmounts.makingAmount = remainingMakerAmount;
                 }
-                takingAmount = _callGetter(order.getTakerAmount, order.makingAmount, makingAmount, order.takingAmount);
+                orderAmounts.takingAmount = _callGetter(order.getTakerAmount, order.makingAmount, orderAmounts.makingAmount, order.takingAmount);
                 // check that actual rate is not worse than what was expected
-                // takingAmount / makingAmount <= thresholdAmount / requestedMakingAmount
-                require(takingAmount * requestedMakingAmount <= thresholdAmount * makingAmount, "LOP: taking amount too high");
+                // orderAmounts.takingAmount / orderAmounts.makingAmount <= orderAmounts.thresholdAmount / requestedMakingAmount
+                require(orderAmounts.takingAmount * requestedMakingAmount <= orderAmounts.thresholdAmount * orderAmounts.makingAmount, "LOP: taking amount too high");
             } else {
-                uint256 requestedTakingAmount = takingAmount;
-                makingAmount = _callGetter(order.getMakerAmount, order.takingAmount, takingAmount, order.makingAmount);
-                if (makingAmount > remainingMakerAmount) {
-                    makingAmount = remainingMakerAmount;
-                    takingAmount = _callGetter(order.getTakerAmount, order.makingAmount, makingAmount, order.takingAmount);
+                uint256 requestedTakingAmount = orderAmounts.takingAmount;
+                orderAmounts.makingAmount = _callGetter(order.getMakerAmount, order.takingAmount, orderAmounts.takingAmount, order.makingAmount);
+                if (orderAmounts.makingAmount > remainingMakerAmount) {
+                    orderAmounts.makingAmount = remainingMakerAmount;
+                    orderAmounts.takingAmount = _callGetter(order.getTakerAmount, order.makingAmount, orderAmounts.makingAmount, order.takingAmount);
                 }
                 // check that actual rate is not worse than what was expected
-                // makingAmount / takingAmount >= thresholdAmount / requestedTakingAmount
-                require(makingAmount * requestedTakingAmount >= thresholdAmount * takingAmount, "LOP: making amount too low");
+                // orderAmounts.makingAmount / orderAmounts.takingAmount >= orderAmounts.thresholdAmount / requestedTakingAmount
+                require(orderAmounts.makingAmount * requestedTakingAmount >= orderAmounts.thresholdAmount * orderAmounts.takingAmount, "LOP: making amount too low");
             }
 
-            require(makingAmount > 0 && takingAmount > 0, "LOP: can't swap 0 amount");
+            require(orderAmounts.makingAmount > 0 && orderAmounts.takingAmount > 0, "LOP: can't swap 0 amount");
 
             // Update remaining amount in storage
             unchecked {
-                remainingMakerAmount = remainingMakerAmount - makingAmount;
+                remainingMakerAmount = remainingMakerAmount - orderAmounts.makingAmount;
                 _remaining[orderHash] = remainingMakerAmount + 1;
             }
             emit OrderFilled(msg.sender, orderHash, remainingMakerAmount);
-        }
-
-        // Taker => Maker
-        _makeCall(
-            order.takerAsset,
-            abi.encodePacked(
-                IERC20.transferFrom.selector,
-                uint256(uint160(msg.sender)),
-                uint256(uint160(order.receiver == address(0) ? order.maker : order.receiver)),
-                takingAmount,
-                order.takerAssetData
-            )
-        );
-
-        // Maker can handle funds interactively
-        if (order.interaction.length >= 20) {
-            // proceed only if interaction length is enough to store address
-            (address interactionTarget, bytes memory interactionData) = order.interaction.decodeTargetAndCalldata();
-            InteractiveNotificationReceiver(interactionTarget).notifyFillOrder(
-                msg.sender, order.makerAsset, order.takerAsset, makingAmount, takingAmount, interactionData
-            );
         }
 
         // Maker => Taker
@@ -283,12 +301,42 @@ abstract contract OrderMixin is
                 IERC20.transferFrom.selector,
                 uint256(uint160(order.maker)),
                 uint256(uint160(target)),
-                makingAmount,
+                orderAmounts.makingAmount,
                 order.makerAssetData
             )
         );
 
-        return (makingAmount, takingAmount);
+        // Handle external extraInteraction
+        if (extraInteraction.length >= 20) {
+            // proceed only if interaction length is enough to store address
+            (address interactionTarget, bytes memory interactionData) = extraInteraction.decodeTargetAndCalldata();
+            InteractiveNotificationReceiver(interactionTarget).notifyFillOrder(
+                msg.sender, order.makerAsset, order.takerAsset, orderAmounts.makingAmount, orderAmounts.takingAmount, interactionData
+            );
+        }
+        
+        // Taker => Maker
+        _makeCall(
+            order.takerAsset,
+            abi.encodePacked(
+                IERC20.transferFrom.selector,
+                uint256(uint160(msg.sender)),
+                uint256(uint160(order.receiver == address(0) ? order.maker : order.receiver)),
+                orderAmounts.takingAmount,
+                order.takerAssetData
+            )
+        );
+
+        // Maker can handle funds interactively
+        if (order.interaction.length >= 20) {
+            // proceed only if interaction length is enough to store address
+            (address interactionTarget, bytes memory interactionData) = order.interaction.decodeTargetAndCalldata();
+            InteractiveNotificationReceiver(interactionTarget).notifyFillOrder(
+                msg.sender, order.makerAsset, order.takerAsset, orderAmounts.makingAmount, orderAmounts.takingAmount, interactionData
+            );
+        }
+
+        return (orderAmounts.makingAmount, orderAmounts.takingAmount);
     }
 
     /// @notice Checks order predicate
